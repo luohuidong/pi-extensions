@@ -1,0 +1,44 @@
+{
+  "name": "minimax-quota-show-for-pi",
+  "version": "0.1.0",
+  "description": "Shows MiniMax Token Plan quota (5h and 7d windows) in the pi TUI status bar. Reads the API key from the MINIMAX_TOKEN_PLAN_API_KEY environment variable.",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "minimax",
+    "quota",
+    "token-plan"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "tsc --noEmit",
+    "format": "biome format --write",
+    "lint": "biome lint",
+    "check": "biome check",
+    "fix": "biome check --write",
+    "verify": "pnpm typecheck && pnpm check && pnpm test",
+    "prepublishOnly": "pnpm verify"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.12",
+    "@earendil-works/pi-coding-agent": "^0.85.1",
+    "@types/node": "^26.0.0",
+    "typescript": "^5.8.3"
+  },
+  "packageManager": "pnpm@9.12.0"
+}
