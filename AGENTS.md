@@ -12,6 +12,7 @@
 - **凭据类型**: 静态 `api_key`(以 `sk-cp-` 开头)
 - **刷新时机**: `session_start`(同步占位 + 异步拉取)与 `agent_settled`
 - **手动刷新**: 斜杠命令 `/minimax-quota`
+- **激活 provider**: 仅 `minimax-cn`;其它 provider 一律保持状态栏空(不渲染任何占位符)。中段切换通过 `model_select` 事件同步。
 
 ## 目录结构
 
@@ -38,12 +39,13 @@
 
 ### 行为契约
 
-1. **占位符在 UI 永不空**(由 `src/index.ts` 控制):
-   - `minimax: loading…` —— `session_start` 同步显示
+1. **激活门控**(`src/index.ts`): 仅当 `ctx.model?.provider === "minimax-cn"` 时扩展才渲染状态行;其它 provider 视为不适用,直接不写状态栏。中段切换通过 `model_select` 事件实时同步(切走清状态、切回重新拉取)。
+2. **占位符仅在激活期间出现**(`src/index.ts` 控制):
+   - `minimax: loading…` —— `session_start` 同步显示(仅 minimax-cn)
    - `minimax: no credentials` —— `MINIMAX_TOKEN_PLAN_API_KEY` 缺失或为空
    - `minimax: no quota data` —— 接口返回空 / 形状不符
    - `minimax: error` —— 其它任意失败(网络、鉴权、解析)
-2. **并发去重**: `inflight` 标志位防止 `session_start` / `agent_settled` 连发时并发拉取。
+3. **并发去重**: `inflight` 标志位防止 `session_start` / `agent_settled` 连发时并发拉取。
 
 ### 取数规则(`src/aggregate.ts`)
 
@@ -125,6 +127,7 @@
 ### 不要改动的内容
 
 - `STATUS_KEY = "minimax-quota"`(UI 上识别此行的 key,可能被外部依赖)
+- `TARGET_PROVIDER = "minimax-cn"`(激活 provider 常量;改名需要同步更新 README 的激活条件说明)
 - 颜色阈值常量(`COLOR_GREEN_MIN=50`、`COLOR_YELLOW_MIN=20`)、`PERCENT_CLAMP_MAX`(已有测试锁住)
 - 状态行整体顺序 `5h … 7d …`(测试断言完整字符串)
 - `peerDependencies` 中 `@earendil-works/pi-coding-agent` 必须是 `*`(扩展按宿主版本加载)
@@ -137,6 +140,8 @@
 - `formatDuration` 不会输出 `0s`;`0` 或负数 → `"0m"`
 - 占位符使用 `dim` 主题色,不要换成彩色,避免误读为"高配额"
 - `auth.ts` 直接读 `process.env.MINIMAX_TOKEN_PLAN_API_KEY`;测试中要 `afterEach` 还原环境变量,避免污染其它用例
+- `index.ts` 的 `isProviderActive` 是 provider 门控唯一来源;`session_start` / `agent_settled` / `model_select` / 命令处理器都要走它。`ctx.model` 在 `session_start` 时通常已经可用,但允许 `undefined`(此时视为非激活)
+- `model_select` 用 `event.model.provider`,不要换成 `ctx.model`(切换瞬间两者可能不一致)
 - 测试中 `theme` 是 `as unknown as Parameters<typeof formatStatusLine>[0]` 强转,新增 `format*` 函数时记得更新此断言的导入类型
 
 ## 许可

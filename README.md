@@ -39,6 +39,17 @@ pi -e npm:minimax-quota-show-for-pi
 The extension reads the key from this environment variable. No
 companion CLI tool is required.
 
+## Activation
+
+The extension only renders when the active model's provider is
+`minimax-cn` (the China-region MiniMax provider that exposes the Token
+Plan endpoint). Any other provider leaves the footer untouched — there
+is no "disabled" or "unsupported" placeholder, the line simply does not
+appear. If you switch providers mid-session (via `/model` or similar),
+the line is cleared as soon as you leave `minimax-cn` and re-fetched as
+soon as you return. The manual `/minimax-quota` command also refuses to
+run outside `minimax-cn` and notifies you of the active provider.
+
 ## What the bar shows
 
 The Token Plan endpoint returns one entry per model bucket (`general`,
@@ -76,12 +87,13 @@ rotating the API key in your shell.
 
 ## Status messages
 
-When something goes wrong the extension shows a dim placeholder so the
-footer never goes blank:
+When the extension is active (provider is `minimax-cn`) and something
+goes wrong it shows a dim placeholder so the footer never goes blank.
+On any other provider the footer is left untouched (see **Activation**).
 
 | Message                          | When                                              |
 |----------------------------------|---------------------------------------------------|
-| `minimax: loading…`              | Shown synchronously at session start               |
+| `minimax: loading…`              | Shown synchronously at session start (active provider only) |
 | `minimax: no credentials`        | `MINIMAX_TOKEN_PLAN_API_KEY` unset or empty       |
 | `minimax: no quota data`         | API returned an empty/unrecognized payload        |
 | `minimax: error`                 | Any other failure (network, auth, parse, etc.)        |
