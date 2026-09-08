@@ -6,7 +6,7 @@
 
 - **类型**: pi-mono 扩展(npm 包名 `minimax-quota-show-for-pi`,版本 `0.1.0`)
 - **作用**: 在 pi TUI 底部状态栏显示 **Token Plan** 配额
-- **渲染格式**: `5h:80%(3h12m) 7d:65%(4d6h)`,按窗口着色
+- **渲染格式**: `MiniMax Token Plan · 5h 80% (3h12m) · 7d 65% (4d6h)`(`MiniMax Token Plan` / `5h` / `7d` / ` · ` / `(` / `)` / 时长均为 `dim`,百分比按 50 / 20 阈值走 `success` / `warning` / `error`)
 - **端点**: 仅 China 区域 `https://api.minimaxi.com/v1/token_plan/remains`
 - **凭据来源**: 环境变量 `MINIMAX_TOKEN_PLAN_API_KEY`(静态 API key)
 - **凭据类型**: 静态 `api_key`(以 `sk-cp-` 开头)
@@ -66,10 +66,11 @@
   - `≥ 50` → `success`(绿)
   - `≥ 20` → `warning`(黄)
   - 其它 → `error`(红)
-- 状态行整体模板:
+- 状态行整体模板(`src/format.ts` 的 `formatStatusLine`):
   ```
-  5h:<pctColor>(<dimDuration>) 7d:<pctColor>(<dimDuration>)
+  MiniMax Token Plan · 5h <pctColor> (<dimDuration>) · 7d <pctColor> (<dimDuration>)
   ```
+  其中 `MiniMax Token Plan` / `5h` / `7d` / ` · ` / `(` / `)` / `<dimDuration>`(`formatDuration(ms)` 输出)都包一层 `theme.fg("dim", ...)`,只有百分比按 `COLOR_GREEN_MIN=50` / `COLOR_YELLOW_MIN=20` 走 `success` / `warning` / `error`
 
 ## 开发工作流
 
@@ -100,8 +101,8 @@
 - 模型工厂: `tests/helpers/models.ts` 暴露 `makeModel(overrides)`,默认值代表"健康 general"模型
 - 覆盖范围: 取首模型、缺字段归 0、百分比 clamp、百分比 / 时长边界、颜色桶、完整 `formatStatusLine` 输出
 - 关键示例必须保留(测试断言锁住):
-  - `5h:20%(2h35m) 7d:30%(5d8h)`(聚合与格式各有一个用例)
-  - `5h:20%(3m) 7d:30%(3m)`(接近重置)
+  - `5h 20% (2h35m) 7d 30% (5d8h)`(聚合与格式各有一个用例;测试锁住底层数值 `h5Pct=20` / `h5Ms=2h35m` / `d7Pct=30` / `d7Ms=5d8h`,不锁整行字面量)
+  - `5h 20% (3m) 7d 30% (3m)`(接近重置)
 
 ## 端点与凭据
 

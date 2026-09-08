@@ -40,7 +40,7 @@ describe("formatDuration", () => {
     expect(formatDuration(30 * 1000)).toBe("1m");
   });
 
-  it("renders realistic aggregate values from the documented example `5h:20%(2h35m) 7d:30%(5d8h)`", () => {
+  it("renders realistic aggregate values from the documented example `5h 20% (2h35m) 7d 30% (5d8h)`", () => {
     const q: AggregatedQuota = {
       h5Pct: 20,
       h5Ms: 2 * 60 * 60 * 1000 + 35 * 60 * 1000,
@@ -51,7 +51,7 @@ describe("formatDuration", () => {
     expect(formatDuration(q.d7Ms)).toBe("5d8h");
   });
 
-  it("renders the close-to-reset example `5h:20%(3m) 7d:30%(3m)`", () => {
+  it("renders the close-to-reset example `5h 20% (3m) 7d 30% (3m)`", () => {
     const q: AggregatedQuota = {
       h5Pct: 20,
       h5Ms: 3 * 60 * 1000,

@@ -74,8 +74,8 @@ describe("aggregate", () => {
     expect(aggregate([makeModel({ current_interval_remaining_percent: -5 })]).h5Pct).toBe(0);
   });
 
-  it("produces the documented example numbers: 5h:20%, 7d:30%", () => {
-    // Documented example: `5h:20%(2h35m) 7d:30%(5d8h)`
+  it("produces the documented example numbers: 5h 20%, 7d 30%", () => {
+    // Documented example: `5h 20% (2h35m) 7d 30% (5d8h)`
     const result = aggregate([
       makeModel({
         current_interval_remaining_percent: 20,
