@@ -14,7 +14,7 @@
   "files": [
     "src/",
     "README.md",
-    "LICENSE"
+    "LICENSE.md"
   ],
   "pi": {
     "extensions": [
