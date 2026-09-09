@@ -4,7 +4,7 @@
 
 ## 项目速览
 
-- **类型**: pi-mono 扩展(npm 包名 `minimax-quota-show-for-pi`,版本 `0.1.0`)
+- **类型**: pi-mono 扩展(npm 包名 `show-minimax-quota-for-pi`,版本 `0.1.0`)
 - **作用**: 在 pi TUI 底部状态栏显示 **Token Plan** 配额
 - **渲染格式**: `MiniMax Token Plan · 5h 80% (3h12m) · 7d 65% (4d6h)`(`MiniMax Token Plan` / `5h` / `7d` / ` · ` / `(` / `)` / 时长均为 `dim`,百分比按 50 / 20 阈值走 `success` / `warning` / `error`)
 - **端点**: 仅 China 区域 `https://api.minimaxi.com/v1/token_plan/remains`

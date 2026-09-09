@@ -1,5 +1,5 @@
 {
-  "name": "minimax-quota-show-for-pi",
+  "name": "show-minimax-quota-for-pi",
   "version": "0.1.0",
   "description": "Shows MiniMax Token Plan quota (5h and 7d windows) in the pi TUI status bar. Reads the API key from the MINIMAX_TOKEN_PLAN_API_KEY environment variable.",
   "keywords": [
