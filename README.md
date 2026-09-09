@@ -1,6 +1,6 @@
 # Show Minimax Quota For Pi Coding Agent
 
-A [pi](https://github.com/badlogic/pi-mono) extension that shows the current
+A [pi](https://github.com/earendil-works/pi) extension that shows the current
 MiniMax **Token Plan** quota in the bottom status bar of the TUI.
 
 The line renders as
@@ -16,28 +16,32 @@ Token Plan endpoint only — `https://api.minimaxi.com/v1/token_plan/remains`.
 ## Install
 
 ```bash
-pi install npm:minimax-quota-show-for-pi
+pi install https://github.com/luohuidong/show-minimax-quota-for-pi 
 ```
 
 or for a one-off test run without installing:
 
 ```bash
-pi -e npm:minimax-quota-show-for-pi
+pi -e https://github.com/luohuidong/show-minimax-quota-for-pi
 ```
 
 ## Prerequisites
 
 - `pi` installed globally
-- A Token Plan API key (starts with `sk-cp-…`) exported as
-  `MINIMAX_TOKEN_PLAN_API_KEY` before launching `pi`, e.g.:
+- A Token Plan API key (starts with `sk-cp-…`) exported as `MINIMAX_TOKEN_PLAN_API_KEY` before launching `pi`. To set the key only for the current session, run the `export` line inline and launch `pi` right after:
 
   ```bash
   export MINIMAX_TOKEN_PLAN_API_KEY=sk-cp-…
   pi
   ```
 
-The extension reads the key from this environment variable. No
-companion CLI tool is required.
+  To persist it across sessions, add the `export` line to your shell config (e.g. `~/.bashrc` or `~/.zshrc`) and start a new shell:
+
+  ```bash
+  export MINIMAX_TOKEN_PLAN_API_KEY=sk-cp-…
+  ```
+
+  Then run `pi` from that shell.
 
 ## Activation
 
