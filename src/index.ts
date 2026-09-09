@@ -107,6 +107,10 @@ export default function (pi: ExtensionAPI) {
       clearStatus(ctx);
       return;
     }
+    // Match session_start: show the placeholder synchronously so the
+    // footer isn't blank while the first fetch is in flight (up to
+    // QUOTA_TIMEOUT_MS). refresh() replaces it on resolve.
+    ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", PLACEHOLDER_LOADING));
     void refresh(ctx);
   });
 
