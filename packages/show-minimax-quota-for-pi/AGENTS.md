@@ -1,0 +1,163 @@
+# AGENTS.md — `show-minimax-quota-for-pi`
+
+本文件覆盖 `show-minimax-quota-for-pi` extension 的全部契约、测试约定、踩坑与修改指引。Workspace 级约定(目录布局、Biome workspace 规则、跨包命令)见仓库根 [`AGENTS.md`](../../../AGENTS.md)。
+
+## 项目速览
+
+- **类型**: pi-coding-agent extension(npm 包名 `show-minimax-quota-for-pi`,版本 `0.1.0`)
+- **作用**: 在 pi TUI 底部状态栏显示 **Token Plan** 配额
+- **渲染格式**: `MiniMax Token Plan · 5h 80% (3h12m) · 7d 65% (4d6h)`(`MiniMax Token Plan` / `5h` / `7d` / `·` / `(` / `)` / 时长均为 `dim`,百分比按 50 / 20 阈值走 `success` / `warning` / `error`)
+- **端点**: 仅 China 区域 `https://api.minimaxi.com/v1/token_plan/remains`
+- **凭据来源**: 环境变量 `MINIMAX_TOKEN_PLAN_API_KEY`(静态 API key)
+- **凭据类型**: 静态 `api_key`(以 `sk-cp-` 开头)
+- **刷新时机**: `session_start`(同步占位 + 异步拉取)与 `agent_settled`
+- **手动刷新**: 斜杠命令 `/minimax-quota`
+- **激活 provider**: 仅 `minimax-cn`;其它 provider 一律保持状态栏空(不渲染任何占位符)。中段切换通过 `model_select` 事件同步。
+
+## 目录结构
+
+```
+packages/show-minimax-quota-for-pi/
+├── AGENTS.md                # 本文件
+├── README.md                # 用户文档(安装、prereqs、状态消息表)
+├── LICENSE.md               # MIT,随包发布
+├── package.json             # extension 元数据、`pi.extensions`、`peerDeps`
+├── biome.json               # `{"extends": "//"}`,继承根 Biome 配置
+├── tsconfig.json            # strict, ESNext, bundler 解析
+├── .npmignore
+├── src/
+│   ├── index.ts      扩展入口、事件钩子、`/minimax-quota` 命令
+│   ├── api.ts        Token Plan HTTP 客户端(5s 超时)
+│   ├── auth.ts       读取 MINIMAX_TOKEN_PLAN_API_KEY,生成 Bearer header
+│   ├── aggregate.ts  取 model_remains[0] 直读 percent / 剩余时间(ms)
+│   └── format.ts     纯函数:百分比着色、时长格式化、状态行组装
+└── tests/
+    ├── aggregate.test.ts  aggregate(取首模型、缺字段归 0、clamp)
+    ├── auth.test.ts       resolveAuthHeader(env var 行为)
+    ├── format.test.ts     formatDuration + formatStatusLine
+    └── helpers/           theme stub、model 工厂、expect 兼容壳
+```
+
+## 关键约束(必须保留)
+
+### 行为契约
+
+1. **激活门控**(`src/index.ts`): 仅当 `ctx.model?.provider === "minimax-cn"` 时扩展才渲染状态行;其它 provider 视为不适用,直接不写状态栏。中段切换通过 `model_select` 事件实时同步(切走清状态、切回重新拉取)。
+2. **占位符仅在激活期间出现**(`src/index.ts` 控制):
+   - `minimax: loading…` —— `session_start` 同步显示(仅 minimax-cn)
+   - `minimax: no credentials` —— `MINIMAX_TOKEN_PLAN_API_KEY` 缺失或为空
+   - `minimax: no quota data` —— 接口返回空 / 形状不符
+   - `minimax: error` —— 其它任意失败(网络、鉴权、解析)
+3. **并发去重**: `inflight` 标志位防止 `session_start` / `agent_settled` 连发时并发拉取。
+
+### 取数规则(`src/aggregate.ts`)
+
+- 接口只取 `model_remains[0]`,后续 model 一律忽略
+- `5h` 百分比 = `model_remains[0].current_interval_remaining_percent`(直接读,不重算)
+- `7d` 百分比 = `model_remains[0].current_weekly_remaining_percent`(直接读,不重算)
+- `5h` 剩余时间 = `model_remains[0].remains_time`(毫秒)
+- `7d` 剩余时间 = `model_remains[0].weekly_remains_time`(毫秒)
+- 百分比硬上限 `PERCENT_CLAMP_MAX = 200`,缺省(0 / 负 / null / undefined)统一归 0
+
+### 格式化规则(`src/format.ts`)
+
+- 重置时间**只到分钟**(`formatDuration`),不允许秒级输出
+  - `< 1h` → `3m`
+  - `≥ 1h 且 < 1d` → `2h35m`
+  - `≥ 1d` → `5d8h`(分钟被丢弃)
+- 颜色阈值(百分比剩余):
+  - `≥ 50` → `success`(绿)
+  - `≥ 20` → `warning`(黄)
+  - 其它 → `error`(红)
+- 状态行整体模板(`src/format.ts` 的 `formatStatusLine`):
+  ```
+  MiniMax Token Plan · 5h <pctColor> (<dimDuration>) · 7d <pctColor> (<dimDuration>)
+  ```
+  其中 `MiniMax Token Plan` / `5h` / `7d` / `·` / `(` / `)` / `<dimDuration>`(`formatDuration(ms)` 输出)都包一层 `theme.fg("dim", ...)`,只有百分比按 `COLOR_GREEN_MIN=50` / `COLOR_YELLOW_MIN=20` 走 `success` / `warning` / `error`
+
+## 开发工作流
+
+`biome` 在 workspace 根 `node_modules` 可用(由 pnpm 提升),所以包内脚本调用 `biome` 也能直接找到。
+
+| 任务                 | 命令                                                                              |
+| -------------------- | --------------------------------------------------------------------------------- |
+| 安装依赖             | `pnpm install`(在 workspace 根)                                                   |
+| 跑测试               | `pnpm test`(`node --test`,Node 22.7+ 自带 strip-types;`import` 必须用 `.ts` 后缀) |
+| 类型检查             | `pnpm typecheck`(`tsc --noEmit`)                                                  |
+| 全量校验             | `pnpm verify`(typecheck + `pnpm check` + `pnpm md:check` + test)                  |
+| 格式化 `*.ts/*.json` | `pnpm format`(`biome format --write`)                                             |
+| 格式化 `*.md`        | `pnpm md:format`(`prettier --write "**/*.md"`)                                    |
+| Lint                 | `pnpm lint`(`biome lint`)                                                         |
+| Biome check          | `pnpm check`                                                                      |
+| Markdown check       | `pnpm md:check`(`prettier --check "**/*.md"`)                                     |
+| Biome 自动修复       | `pnpm fix`(`biome check --write`)                                                 |
+| 发布前               | `pnpm prepublishOnly`(自动跑 `pnpm verify`)                                       |
+
+发布前会自动跑 `pnpm verify`(`prepublishOnly`)。
+
+## 代码风格
+
+Biome 风格(indent / lineWidth / quote / semicolon / trailing comma / organizeImports)由 workspace 根 `biome.json` 统一强制,本包的 `biome.json` 仅 `{"extends": "//"}`。Biome 只处理 `*.ts` / `*.json`;Markdown(本包的 `AGENTS.md` / `README.md`)交由 workspace 根目录的 [Prettier](https://prettier.io/docs/install) 处理。
+
+TypeScript 风格由 `tsconfig.json` 强制:
+
+- `strict: true`
+- `module: ESNext`、`moduleResolution: bundler`
+- `isolatedModules: true`
+- `allowImportingTsExtensions: true` + `noEmit: true`(配合 Node 26 原生 strip-types)
+
+## 测试约定
+
+- 框架: `node:test`(`describe` / `it` / `afterEach`)+ `node:assert/strict`;`expect()` 由 `tests/helpers/expect.ts` 提供兼容壳
+- import 后缀: 所有本地模块的 `import` 写 `.ts` 后缀(如 `from "./foo.ts"`);`tsconfig` 配 `allowImportingTsExtensions: true` + `noEmit: true` 让 TS 编译通过,Node 26 strip-types 原生解析。npm 包保持裸名(如 `@earendil-works/pi-coding-agent`)
+- 不依赖真实 pi 主题: `tests/helpers/theme.ts` 提供 `fg` / `bg` 返回 `[color]text[/]` 标签字符串,断言通过标签匹配颜色
+- 模型工厂: `tests/helpers/models.ts` 暴露 `makeModel(overrides)`,默认值代表"健康 general"模型
+- 覆盖范围: 取首模型、缺字段归 0、百分比 clamp、百分比 / 时长边界、颜色桶、完整 `formatStatusLine` 输出
+- 关键示例必须保留(测试断言锁住):
+  - `5h 20% (2h35m) 7d 30% (5d8h)`(聚合与格式各有一个用例;测试锁住底层数值 `h5Pct=20` / `h5Ms=2h35m` / `d7Pct=30` / `d7Ms=5d8h`,不锁整行字面量)
+  - `5h 20% (3m) 7d 30% (3m)`(接近重置)
+
+## 端点与凭据
+
+- **HTTP**:`GET https://api.minimaxi.com/v1/token_plan/remains`
+- **Auth**:`Authorization: Bearer <MINIMAX_TOKEN_PLAN_API_KEY>`
+- **环境变量**: `MINIMAX_TOKEN_PLAN_API_KEY`,值为以 `sk-cp-` 开头的静态 API key
+
+## 修改指引
+
+### 增加新占位符
+
+1. 在 `src/index.ts` 增加 `PLACEHOLDER_*` 常量
+2. 在 `refresh` 的对应分支用 `ctx.ui.theme.fg("dim", ...)` 设置
+3. 同步更新 `README.md` 的"Status messages"表
+
+### 增加新的统计窗口
+
+- 形状:扩展 `QuotaModelRemain`(`src/api.ts`)与 `AggregatedQuota`(`src/aggregate.ts`)
+- 模板:修改 `formatStatusLine`(`src/format.ts`),并把示例同步进 `README.md`
+- 测试:在 `tests/aggregate.test.ts` / `format.test.ts` 补边界用例
+- 颜色与时长规则可复用现有常量
+
+### 不要改动的内容
+
+- `STATUS_KEY = "minimax-quota"`(UI 上识别此行的 key,可能被外部依赖)
+- `TARGET_PROVIDER = "minimax-cn"`(激活 provider 常量;改名需要同步更新 README 的激活条件说明)
+- 颜色阈值常量(`COLOR_GREEN_MIN=50`、`COLOR_YELLOW_MIN=20`)、`PERCENT_CLAMP_MAX`(已有测试锁住)
+- 状态行整体顺序 `5h … 7d …`(测试断言完整字符串)
+- `peerDependencies` 中 `@earendil-works/pi-coding-agent` 必须是 `*`(扩展按宿主版本加载)
+- 凭据只通过 `MINIMAX_TOKEN_PLAN_API_KEY` 环境变量获取;不要新增配置文件解析
+
+## 常见踩坑
+
+- `api.ts` 在任何 HTTP / JSON 错误上返回 `null`,由 `index.ts` 决定占位符
+- `aggregate.ts` 取 `models[0]`;空数组 / 缺字段一律归 0,不要假设一定有 percent / ms
+- `formatDuration` 不会输出 `0s`;`0` 或负数 → `"0m"`
+- 占位符使用 `dim` 主题色,不要换成彩色,避免误读为"高配额"
+- `auth.ts` 直接读 `process.env.MINIMAX_TOKEN_PLAN_API_KEY`;测试中要 `afterEach` 还原环境变量,避免污染其它用例
+- `index.ts` 的 `isProviderActive` 是 provider 门控唯一来源;`session_start` / `agent_settled` / `model_select` / 命令处理器都要走它。`ctx.model` 在 `session_start` 时通常已经可用,但允许 `undefined`(此时视为非激活)
+- `model_select` 用 `event.model.provider`,不要换成 `ctx.model`(切换瞬间两者可能不一致)
+- 测试中 `theme` 是 `as unknown as Parameters<typeof formatStatusLine>[0]` 强转,新增 `format*` 函数时记得更新此断言的导入类型
+
+## 许可
+
+MIT(见 `LICENSE.md`,Copyright 2026 Luo Huidong)。
