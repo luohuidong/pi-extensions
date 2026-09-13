@@ -15,26 +15,17 @@ Token Plan endpoint only — `https://api.minimaxi.com/v1/token_plan/remains`.
 
 ## Install
 
-The extension lives in the `packages/show-minimax-quota-for-pi` subdirectory of a
-pnpm workspace. Install from GitHub by appending the subpath:
+Install from npm:
 
 ```bash
-pi install github:luohuidong/show-minimax-quota-for-pi#packages/show-minimax-quota-for-pi
+pi install npm:pi-show-minimax-quota
 ```
 
-or for a one-off test run without installing:
+For a one-off test run without installing:
 
 ```bash
-pi -e github:luohuidong/show-minimax-quota-for-pi#packages/show-minimax-quota-for-pi
+pi -e npm:pi-show-minimax-quota
 ```
-
-> If your version of `pi` does not accept the `#subpath` form, clone the repo
-> and `pi install` (or `pi -e`) the local package directory instead:
->
-> ```bash
-> git clone https://github.com/luohuidong/show-minimax-quota-for-pi
-> pi -e ./show-minimax-quota-for-pi/packages/show-minimax-quota-for-pi
-> ```
 
 ## Prerequisites
 

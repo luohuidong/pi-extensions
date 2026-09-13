@@ -21,7 +21,7 @@ importers:
         specifier: ^5.8.3
         version: 5.9.3
 
-  packages/show-minimax-quota-for-pi:
+  packages/pi-show-minimax-quota:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: ^0.85.1

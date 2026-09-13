@@ -1,10 +1,10 @@
-# AGENTS.md — `show-minimax-quota-for-pi`
+# AGENTS.md — `pi-show-minimax-quota`
 
-本文件覆盖 `show-minimax-quota-for-pi` extension 的全部契约、测试约定、踩坑与修改指引。Workspace 级约定(目录布局、Biome workspace 规则、跨包命令)见仓库根 [`AGENTS.md`](../../../AGENTS.md)。
+本文件覆盖 `pi-show-minimax-quota` extension 的全部契约、测试约定、踩坑与修改指引。Workspace 级约定(目录布局、Biome workspace 规则、跨包命令)见仓库根 [`AGENTS.md`](../../../AGENTS.md)。
 
 ## 项目速览
 
-- **类型**: pi-coding-agent extension(npm 包名 `show-minimax-quota-for-pi`,版本 `0.1.0`)
+- **类型**: pi-coding-agent extension(npm 包名 `pi-show-minimax-quota`,版本 `0.1.0`)
 - **作用**: 在 pi TUI 底部状态栏显示 **Token Plan** 配额
 - **渲染格式**: `MiniMax Token Plan · 5h 80% (3h12m) · 7d 65% (4d6h)`(`MiniMax Token Plan` / `5h` / `7d` / `·` / `(` / `)` / 时长均为 `dim`,百分比按 50 / 20 阈值走 `success` / `warning` / `error`)
 - **端点**: 仅 China 区域 `https://api.minimaxi.com/v1/token_plan/remains`
@@ -17,7 +17,7 @@
 ## 目录结构
 
 ```
-packages/show-minimax-quota-for-pi/
+packages/pi-show-minimax-quota/
 ├── AGENTS.md                # 本文件
 ├── README.md                # 用户文档(安装、prereqs、状态消息表)
 ├── LICENSE.md               # MIT,随包发布

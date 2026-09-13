@@ -6,9 +6,9 @@ extension with its own `package.json`, `src/`, `tests/`, and docs.
 
 ## Packages
 
-| Package                                                             | Description                                                                |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| [`show-minimax-quota-for-pi`](./packages/show-minimax-quota-for-pi) | Shows MiniMax Token Plan quota (5h / 7d windows) in the pi TUI status bar. |
+| Package                                                     | Description                                                                |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------- |
+| [`pi-show-minimax-quota`](./packages/pi-show-minimax-quota) | Shows MiniMax Token Plan quota (5h / 7d windows) in the pi TUI status bar. |
 
 ## Development
 
@@ -19,7 +19,7 @@ pnpm format                 # biome format (ts/json) — most common
 pnpm md:format              # prettier format (md) — less common
 pnpm check                  # biome check (ts/json)
 pnpm md:check               # prettier check (md)
-pnpm -F <pkg> <script>      # run a script in one package, e.g. `pnpm -F show-minimax-quota-for-pi test`
+pnpm -F <pkg> <script>      # run a script in one package, e.g. `pnpm -F pi-show-minimax-quota test`
 ```
 
 Format/lint split:
