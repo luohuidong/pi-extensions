@@ -32,7 +32,7 @@ packages/pi-show-minimax-quota/
 │   ├── aggregate.ts  取 model_remains[0] 直读 percent / 剩余时间(ms)
 │   └── format.ts     纯函数:百分比着色、时长格式化、状态行组装
 └── tests/
-    ├── aggregate.test.ts  aggregate(取首模型、缺字段归 0、clamp)
+    ├── aggregate.test.ts  aggregate(取首模型、缺字段归 0)
     ├── auth.test.ts       resolveAuth(AuthResolution 三态:ok/missing/wrong-type)
     ├── format.test.ts     formatDuration + formatStatusLine
     └── helpers/           theme stub、model 工厂、expect 兼容壳
@@ -58,7 +58,7 @@ packages/pi-show-minimax-quota/
 - `7d` 百分比 = `model_remains[0].current_weekly_remaining_percent`(直接读,不重算)
 - `5h` 剩余时间 = `model_remains[0].remains_time`(毫秒)
 - `7d` 剩余时间 = `model_remains[0].weekly_remains_time`(毫秒)
-- 百分比硬上限 `PERCENT_CLAMP_MAX = 200`,缺省(0 / 负 / null / undefined)统一归 0
+- 缺省(0 / 负 / null / undefined)统一归 0
 
 ### 格式化规则(`src/format.ts`)
 
@@ -113,7 +113,7 @@ TypeScript 风格由 `tsconfig.json` 强制:
 - import 后缀: 所有本地模块的 `import` 写 `.ts` 后缀(如 `from "./foo.ts"`);`tsconfig` 配 `allowImportingTsExtensions: true` + `noEmit: true` 让 TS 编译通过,Node 26 strip-types 原生解析。npm 包保持裸名(如 `@earendil-works/pi-coding-agent`)
 - 不依赖真实 pi 主题: `tests/helpers/theme.ts` 提供 `fg` / `bg` 返回 `[color]text[/]` 标签字符串,断言通过标签匹配颜色
 - 模型工厂: `tests/helpers/models.ts` 暴露 `makeModel(overrides)`,默认值代表"健康 general"模型
-- 覆盖范围: 取首模型、缺字段归 0、百分比 clamp、百分比 / 时长边界、颜色桶、完整 `formatStatusLine` 输出
+- 覆盖范围: 取首模型、缺字段归 0、百分比 / 时长边界、颜色桶、完整 `formatStatusLine` 输出
 - 关键示例必须保留(测试断言锁住):
   - `5h 20% (2h35m) 7d 30% (5d8h)`(聚合与格式各有一个用例;测试锁住底层数值 `h5Pct=20` / `h5Ms=2h35m` / `d7Pct=30` / `d7Ms=5d8h`,不锁整行字面量)
   - `5h 20% (3m) 7d 30% (3m)`(接近重置)
@@ -143,7 +143,7 @@ TypeScript 风格由 `tsconfig.json` 强制:
 
 - `STATUS_KEY = "minimax-quota"`(UI 上识别此行的 key,可能被外部依赖)
 - `TARGET_PROVIDER = "minimax-cn"`(激活 provider 常量;改名需要同步更新 README 的激活条件说明)
-- 颜色阈值常量(`COLOR_GREEN_MIN=50`、`COLOR_YELLOW_MIN=20`)、`PERCENT_CLAMP_MAX`(已有测试锁住)
+- 颜色阈值常量(`COLOR_GREEN_MIN=50`、`COLOR_YELLOW_MIN=20`)
 - 状态行整体顺序 `5h … 7d …`(测试断言完整字符串)
 - `peerDependencies` 中 `@earendil-works/pi-coding-agent` 必须是 `*`(扩展按宿主版本加载)
 - 凭据只通过 `~/.pi/agent/auth.json`(经宿主 `readStoredCredential`)获取;不要再加 env 变量 / 其它配置文件路径

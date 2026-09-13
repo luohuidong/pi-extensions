@@ -69,9 +69,9 @@ describe("aggregate", () => {
     expect(result.d7Ms).toBe(0);
   });
 
-  it("clamps the percent to [0, PERCENT_CLAMP_MAX]", () => {
-    expect(aggregate([makeModel({ current_interval_remaining_percent: 250 })]).h5Pct).toBe(200);
+  it("returns 0 percent for negative values", () => {
     expect(aggregate([makeModel({ current_interval_remaining_percent: -5 })]).h5Pct).toBe(0);
+    expect(aggregate([makeModel({ current_weekly_remaining_percent: -1 })]).d7Pct).toBe(0);
   });
 
   it("produces the documented example numbers: 5h 20%, 7d 30%", () => {

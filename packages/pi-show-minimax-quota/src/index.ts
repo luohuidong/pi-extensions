@@ -15,7 +15,7 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { aggregate } from "./aggregate.ts";
-import { createQuotaClient } from "./api.ts";
+import { fetchQuota } from "./api.ts";
 import { resolveAuth } from "./auth.ts";
 import { formatStatusLine } from "./format.ts";
 
@@ -38,14 +38,22 @@ function isProviderActive(model: { provider: string } | undefined): boolean {
 }
 
 export default function (pi: ExtensionAPI) {
-  const quota = createQuotaClient();
-
   // Guard against stacking concurrent fetches when events fire back-to-back.
   let inflight = false;
 
   function clearStatus(ctx: ExtensionContext): void {
     if (!ctx.hasUI) return;
     ctx.ui.setStatus(STATUS_KEY, undefined);
+  }
+
+  function setPlaceholder(ctx: ExtensionContext, text: string): void {
+    if (!ctx.hasUI) return;
+    ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", text));
+  }
+
+  function setLine(ctx: ExtensionContext, line: string): void {
+    if (!ctx.hasUI) return;
+    ctx.ui.setStatus(STATUS_KEY, line);
   }
 
   async function refresh(ctx: ExtensionContext): Promise<void> {
@@ -61,26 +69,26 @@ export default function (pi: ExtensionAPI) {
     try {
       const auth = resolveAuth();
       if (auth.kind === "missing") {
-        ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", PLACEHOLDER_NO_CREDS));
+        setPlaceholder(ctx, PLACEHOLDER_NO_CREDS);
         return;
       }
       if (auth.kind === "wrong-type") {
         // `sk-api-` (pay-as-you-go) keys authorize /account/query_balance, not
         // the Token Plan endpoint. Render a dedicated placeholder so the user
         // can see the prefix they need instead of a generic upstream error.
-        ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", PLACEHOLDER_WRONG_TYPE));
+        setPlaceholder(ctx, PLACEHOLDER_WRONG_TYPE);
         return;
       }
 
-      const models = await quota.fetchQuota(auth.header);
+      const models = await fetchQuota(auth.header);
       if (!models || models.length === 0) {
-        ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", PLACEHOLDER_NO_DATA));
+        setPlaceholder(ctx, PLACEHOLDER_NO_DATA);
         return;
       }
 
-      ctx.ui.setStatus(STATUS_KEY, formatStatusLine(ctx.ui.theme, aggregate(models)));
+      setLine(ctx, formatStatusLine(ctx.ui.theme, aggregate(models)));
     } catch {
-      ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", PLACEHOLDER_ERROR));
+      setPlaceholder(ctx, PLACEHOLDER_ERROR);
     } finally {
       inflight = false;
     }
@@ -88,23 +96,19 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", (_event, ctx) => {
     if (!ctx.hasUI) return;
-    if (!isProviderActive(ctx.model)) {
-      // Wrong provider — leave the footer untouched instead of showing a
-      // permanent placeholder that would never resolve.
-      return;
-    }
+    // Wrong provider — leave the footer untouched instead of showing a
+    // permanent placeholder that would never resolve.
+    if (!isProviderActive(ctx.model)) return;
     // Show a placeholder synchronously so the footer isn't empty during the
     // first fetch; the real line replaces it as soon as the request resolves.
-    ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", PLACEHOLDER_LOADING));
+    setPlaceholder(ctx, PLACEHOLDER_LOADING);
     void refresh(ctx);
   });
 
   pi.on("agent_settled", (_event, ctx) => {
     if (!ctx.hasUI) return;
-    if (!isProviderActive(ctx.model)) {
-      // Nothing to refresh and nothing to clear — the line was never shown.
-      return;
-    }
+    // Nothing to refresh and nothing to clear — the line was never shown.
+    if (!isProviderActive(ctx.model)) return;
     void refresh(ctx);
   });
 
@@ -118,8 +122,8 @@ export default function (pi: ExtensionAPI) {
     }
     // Match session_start: show the placeholder synchronously so the
     // footer isn't blank while the first fetch is in flight (up to
-    // QUOTA_TIMEOUT_MS). refresh() replaces it on resolve.
-    ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", PLACEHOLDER_LOADING));
+    // the 5s fetch timeout in api.ts). refresh() replaces it on resolve.
+    setPlaceholder(ctx, PLACEHOLDER_LOADING);
     void refresh(ctx);
   });
 

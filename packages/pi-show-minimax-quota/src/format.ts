@@ -38,7 +38,27 @@ function pctColor(theme: Theme, pct: number): string {
   return theme.fg("error", text);
 }
 
+// One per-window segment of the status line, e.g. "5h 80% (3h12m)".
+// Label + reset use the dim theme color; the percent gets its own bucket
+// (success / warning / error via pctColor).
+function segment(theme: Theme, label: string, pct: number, ms: number): string {
+  return [
+    theme.fg("dim", label),
+    " ",
+    pctColor(theme, pct),
+    " ",
+    theme.fg("dim", "("),
+    theme.fg("dim", formatDuration(ms)),
+    theme.fg("dim", ")"),
+  ].join("");
+}
+
 export function formatStatusLine(theme: Theme, q: AggregatedQuota): string {
-  const t = (text: string): string => theme.fg("dim", text);
-  return `${t("MiniMax Token Plan")}${t(" · ")}${t("5h")} ${pctColor(theme, q.h5Pct)} ${t("(")}${t(formatDuration(q.h5Ms))}${t(")")}${t(" · ")}${t("7d")} ${pctColor(theme, q.d7Pct)} ${t("(")}${t(formatDuration(q.d7Ms))}${t(")")}`;
+  return [
+    theme.fg("dim", "MiniMax Token Plan"),
+    theme.fg("dim", " · "),
+    segment(theme, "5h", q.h5Pct, q.h5Ms),
+    theme.fg("dim", " · "),
+    segment(theme, "7d", q.d7Pct, q.d7Ms),
+  ].join("");
 }

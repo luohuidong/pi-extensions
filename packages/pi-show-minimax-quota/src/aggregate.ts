@@ -15,9 +15,14 @@
 
 import type { QuotaModelRemain } from "./api.ts";
 
-// Server-reported percentages should be 0–100; clamp with headroom in case
-// the upstream ever ships a boosted value (e.g. a >100% grace window).
-const PERCENT_CLAMP_MAX = 200;
+// `null` / undefined / NaN / negative → 0; otherwise the value floored at 0.
+// Used for both percentages and millisecond durations: aggregate() drops any
+// missing or malformed field to 0 so the status line always shows numbers
+// instead of crashing the format layer.
+function readPositive(value: number | null | undefined): number {
+  if (value === undefined || value === null || !Number.isFinite(value)) return 0;
+  return Math.max(0, value);
+}
 
 export interface AggregatedQuota {
   h5Pct: number;
@@ -26,24 +31,14 @@ export interface AggregatedQuota {
   d7Ms: number;
 }
 
-function clampPercent(value: number | null | undefined): number {
-  if (value === undefined || value === null || !Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(PERCENT_CLAMP_MAX, value));
-}
-
-function normalizeMs(value: number | null | undefined): number {
-  if (value === undefined || value === null || !Number.isFinite(value)) return 0;
-  return Math.max(0, value);
-}
-
 export function aggregate(models: QuotaModelRemain[]): AggregatedQuota {
   const m = models[0];
   if (!m) return { h5Pct: 0, h5Ms: 0, d7Pct: 0, d7Ms: 0 };
 
   return {
-    h5Pct: clampPercent(m.current_interval_remaining_percent),
-    h5Ms: normalizeMs(m.remains_time),
-    d7Pct: clampPercent(m.current_weekly_remaining_percent),
-    d7Ms: normalizeMs(m.weekly_remains_time),
+    h5Pct: readPositive(m.current_interval_remaining_percent),
+    h5Ms: readPositive(m.remains_time),
+    d7Pct: readPositive(m.current_weekly_remaining_percent),
+    d7Ms: readPositive(m.weekly_remains_time),
   };
 }
