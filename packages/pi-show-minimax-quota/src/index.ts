@@ -1,8 +1,9 @@
 /**
  * MiniMax Token Plan quota status for the pi TUI footer.
  *
- * Reads the API key from the `MINIMAX_TOKEN_PLAN_API_KEY` environment
- * variable and queries the China-region Token Plan quota endpoint,
+ * Reads the API key from `~/.pi/agent/auth.json` (the `minimax-cn` provider
+ * entry, via the host's `readStoredCredential`) and queries the China-region
+ * Token Plan quota endpoint,
  * aggregating the per-model 5h and 7d windows into a single compact line
  * shown in the bottom status bar:
  *
@@ -15,7 +16,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { aggregate } from "./aggregate.ts";
 import { createQuotaClient } from "./api.ts";
-import { resolveAuthHeader } from "./auth.ts";
+import { resolveAuth } from "./auth.ts";
 import { formatStatusLine } from "./format.ts";
 
 const STATUS_KEY = "minimax-quota";
@@ -26,10 +27,11 @@ const STATUS_KEY = "minimax-quota";
 // stay invisible instead of polluting the footer.
 const TARGET_PROVIDER = "minimax-cn";
 
-const PLACEHOLDER_LOADING = "minimax: loading…";
-const PLACEHOLDER_NO_CREDS = "minimax: no credentials";
-const PLACEHOLDER_NO_DATA = "minimax: no quota data";
-const PLACEHOLDER_ERROR = "minimax: error";
+const PLACEHOLDER_LOADING = "MiniMax Token Plan: loading…";
+const PLACEHOLDER_NO_CREDS = "MiniMax Token Plan: no credentials";
+const PLACEHOLDER_WRONG_TYPE = "MiniMax Token Plan: need Token Plan key (sk-cp-…)";
+const PLACEHOLDER_NO_DATA = "MiniMax Token Plan: no quota data";
+const PLACEHOLDER_ERROR = "MiniMax Token Plan: error";
 
 function isProviderActive(model: { provider: string } | undefined): boolean {
   return model?.provider === TARGET_PROVIDER;
@@ -57,13 +59,20 @@ export default function (pi: ExtensionAPI) {
     }
     inflight = true;
     try {
-      const authHeader = resolveAuthHeader();
-      if (!authHeader) {
+      const auth = resolveAuth();
+      if (auth.kind === "missing") {
         ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", PLACEHOLDER_NO_CREDS));
         return;
       }
+      if (auth.kind === "wrong-type") {
+        // `sk-api-` (pay-as-you-go) keys authorize /account/query_balance, not
+        // the Token Plan endpoint. Render a dedicated placeholder so the user
+        // can see the prefix they need instead of a generic upstream error.
+        ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", PLACEHOLDER_WRONG_TYPE));
+        return;
+      }
 
-      const models = await quota.fetchQuota(authHeader);
+      const models = await quota.fetchQuota(auth.header);
       if (!models || models.length === 0) {
         ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", PLACEHOLDER_NO_DATA));
         return;

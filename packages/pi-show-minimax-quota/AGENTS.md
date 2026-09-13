@@ -8,8 +8,8 @@
 - **作用**: 在 pi TUI 底部状态栏显示 **Token Plan** 配额
 - **渲染格式**: `MiniMax Token Plan · 5h 80% (3h12m) · 7d 65% (4d6h)`(`MiniMax Token Plan` / `5h` / `7d` / `·` / `(` / `)` / 时长均为 `dim`,百分比按 50 / 20 阈值走 `success` / `warning` / `error`)
 - **端点**: 仅 China 区域 `https://api.minimaxi.com/v1/token_plan/remains`
-- **凭据来源**: 环境变量 `MINIMAX_TOKEN_PLAN_API_KEY`(静态 API key)
-- **凭据类型**: 静态 `api_key`(以 `sk-cp-` 开头)
+- **凭据来源**: `~/.pi/agent/auth.json` 的 `minimax-cn` provider条目(经宿主 `readStoredCredential` 读取,与 pi 自己发请求用同一份 key)
+- **凭据类型**: 静态 `api_key`(以 `sk-cp-` 开头;`oauth` 类型不视为有效凭据,等同未配置)
 - **刷新时机**: `session_start`(同步占位 + 异步拉取)与 `agent_settled`
 - **手动刷新**: 斜杠命令 `/minimax-quota`
 - **激活 provider**: 仅 `minimax-cn`;其它 provider 一律保持状态栏空(不渲染任何占位符)。中段切换通过 `model_select` 事件同步。
@@ -28,12 +28,12 @@ packages/pi-show-minimax-quota/
 ├── src/
 │   ├── index.ts      扩展入口、事件钩子、`/minimax-quota` 命令
 │   ├── api.ts        Token Plan HTTP 客户端(5s 超时)
-│   ├── auth.ts       读取 MINIMAX_TOKEN_PLAN_API_KEY,生成 Bearer header
+│   ├── auth.ts       经宿主 readStoredCredential 读 ~/.pi/agent/auth.json 的 minimax-cn api_key,按 sk-cp- / sk-api- 前缀分流成 AuthResolution
 │   ├── aggregate.ts  取 model_remains[0] 直读 percent / 剩余时间(ms)
 │   └── format.ts     纯函数:百分比着色、时长格式化、状态行组装
 └── tests/
     ├── aggregate.test.ts  aggregate(取首模型、缺字段归 0、clamp)
-    ├── auth.test.ts       resolveAuthHeader(env var 行为)
+    ├── auth.test.ts       resolveAuth(AuthResolution 三态:ok/missing/wrong-type)
     ├── format.test.ts     formatDuration + formatStatusLine
     └── helpers/           theme stub、model 工厂、expect 兼容壳
 ```
@@ -44,10 +44,11 @@ packages/pi-show-minimax-quota/
 
 1. **激活门控**(`src/index.ts`): 仅当 `ctx.model?.provider === "minimax-cn"` 时扩展才渲染状态行;其它 provider 视为不适用,直接不写状态栏。中段切换通过 `model_select` 事件实时同步(切走清状态、切回重新拉取)。
 2. **占位符仅在激活期间出现**(`src/index.ts` 控制):
-   - `minimax: loading…` —— `session_start` 同步显示(仅 minimax-cn)
-   - `minimax: no credentials` —— `MINIMAX_TOKEN_PLAN_API_KEY` 缺失或为空
-   - `minimax: no quota data` —— 接口返回空 / 形状不符
-   - `minimax: error` —— 其它任意失败(网络、鉴权、解析)
+   - `MiniMax Token Plan: loading…` —— `session_start` 同步显示(仅 minimax-cn)
+   - `MiniMax Token Plan: no credentials` —— `~/.pi/agent/auth.json` 的 `minimax-cn` 条目不可用(缺失 / oauth 类型 / `key` 为空 / JSON 损坏 / 文件不存在)
+   - `MiniMax Token Plan: need Token Plan key (sk-cp-…)` —— 条目存在但是 `sk-api-` 前缀(pay-as-you-go),授权的是 `/account/query_balance` 不是 Token Plan 端点
+   - `MiniMax Token Plan: no quota data` —— 接口返回空 / 形状不符
+   - `MiniMax Token Plan: error` —— 其它任意失败(网络、鉴权、解析)
 3. **并发去重**: `inflight` 标志位防止 `session_start` / `agent_settled` 连发时并发拉取。
 
 ### 取数规则(`src/aggregate.ts`)
@@ -120,8 +121,8 @@ TypeScript 风格由 `tsconfig.json` 强制:
 ## 端点与凭据
 
 - **HTTP**:`GET https://api.minimaxi.com/v1/token_plan/remains`
-- **Auth**:`Authorization: Bearer <MINIMAX_TOKEN_PLAN_API_KEY>`
-- **环境变量**: `MINIMAX_TOKEN_PLAN_API_KEY`,值为以 `sk-cp-` 开头的静态 API key
+- **Auth**:`Authorization: Bearer <key>`,其中 `<key>` 来自 `~/.pi/agent/auth.json` 的 `minimax-cn.api_key.key`(由宿主 `readStoredCredential` 同步读取)
+- **凭据存储**: 与 pi 共用 `~/.pi/agent/auth.json`;推荐走 `/login` 写,改 key 后刷新一条 `/minimax-quota` 即可生效
 
 ## 修改指引
 
@@ -145,7 +146,12 @@ TypeScript 风格由 `tsconfig.json` 强制:
 - 颜色阈值常量(`COLOR_GREEN_MIN=50`、`COLOR_YELLOW_MIN=20`)、`PERCENT_CLAMP_MAX`(已有测试锁住)
 - 状态行整体顺序 `5h … 7d …`(测试断言完整字符串)
 - `peerDependencies` 中 `@earendil-works/pi-coding-agent` 必须是 `*`(扩展按宿主版本加载)
-- 凭据只通过 `MINIMAX_TOKEN_PLAN_API_KEY` 环境变量获取;不要新增配置文件解析
+- 凭据只通过 `~/.pi/agent/auth.json`(经宿主 `readStoredCredential`)获取;不要再加 env 变量 / 其它配置文件路径
+  - 仅接受 `type === "api_key"` 的 `minimax-cn` 条目
+  - `key` 为空或缺失 → 占位 `MiniMax Token Plan: no credentials`
+  - `type === "oauth"` → 同样视为无凭据(Token Plan 端点不接受 oauth)
+  - `key` 以 `sk-api-` 开头(pay-as-you-go)→ 占位 `MiniMax Token Plan: need Token Plan key (sk-cp-…)`;不要降级到 `MiniMax Token Plan: error`
+  - 仅以 `sk-cp-` 开头为正常 Token Plan key,其它前缀(如未来新增的)按原样透传,出错再走 `error`
 
 ## 常见踩坑
 
@@ -153,7 +159,7 @@ TypeScript 风格由 `tsconfig.json` 强制:
 - `aggregate.ts` 取 `models[0]`;空数组 / 缺字段一律归 0,不要假设一定有 percent / ms
 - `formatDuration` 不会输出 `0s`;`0` 或负数 → `"0m"`
 - 占位符使用 `dim` 主题色,不要换成彩色,避免误读为"高配额"
-- `auth.ts` 直接读 `process.env.MINIMAX_TOKEN_PLAN_API_KEY`;测试中要 `afterEach` 还原环境变量,避免污染其它用例
+- `auth.ts` 经宿主 `readStoredCredential(PROVIDER_ID, authPath?)` 读 `~/.pi/agent/auth.json`;测试用 `mkdtempSync` + 写文件覆盖各种形态,`afterEach` 清理临时目录。新增用例必须覆盖 `sk-api-` 前缀(`kind: "wrong-type"`)
 - `index.ts` 的 `isProviderActive` 是 provider 门控唯一来源;`session_start` / `agent_settled` / `model_select` / 命令处理器都要走它。`ctx.model` 在 `session_start` 时通常已经可用,但允许 `undefined`(此时视为非激活)
 - `model_select` 用 `event.model.provider`,不要换成 `ctx.model`(切换瞬间两者可能不一致)
 - 测试中 `theme` 是 `as unknown as Parameters<typeof formatStatusLine>[0]` 强转,新增 `format*` 函数时记得更新此断言的导入类型

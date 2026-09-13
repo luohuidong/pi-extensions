@@ -30,20 +30,8 @@ pi -e npm:pi-show-minimax-quota
 ## Prerequisites
 
 - `pi` installed globally
-- A Token Plan API key (starts with `sk-cp-…`) exported as `MINIMAX_TOKEN_PLAN_API_KEY` before launching `pi`. To set the key only for the current session, run the `export` line inline and launch `pi` right after:
-
-  ```bash
-  export MINIMAX_TOKEN_PLAN_API_KEY=sk-cp-…
-  pi
-  ```
-
-  To persist it across sessions, add the `export` line to your shell config (e.g. `~/.bashrc` or `~/.zshrc`) and start a new shell:
-
-  ```bash
-  export MINIMAX_TOKEN_PLAN_API_KEY=sk-cp-…
-  ```
-
-  Then run `pi` from that shell.
+- A Token Plan API key for the China region (starts with `sk-cp-…`). Inside a pi session, run `/login` and pick `minimax-cn`; paste the Token Plan key when prompted. pi stores it as the `minimax-cn` entry in `~/.pi/agent/auth.json`, which this extension reads to call the quota endpoint — no environment variable or shell export is needed.
+- A pay-as-you-go key (starts with `sk-api-…`) will not work — Token Plan and pay-as-you-go authorize different endpoints (`/v1/token_plan/remains` vs `/account/query_balance`). If you paste a pay-as-you-go key under `minimax-cn`, the footer shows `MiniMax Token Plan: need Token Plan key (sk-cp-…)` so you can swap it for a Token Plan key.
 
 ## Activation
 
@@ -89,7 +77,7 @@ precision only (no seconds), per the original spec:
 ## Manual refresh
 
 Inside a pi session, run `/minimax-quota` to force a refresh — handy after
-rotating the API key in your shell.
+rotating the API key via `/login`.
 
 ## Status messages
 
@@ -97,12 +85,13 @@ When the extension is active (provider is `minimax-cn`) and something
 goes wrong it shows a dim placeholder so the footer never goes blank.
 On any other provider the footer is left untouched (see **Activation**).
 
-| Message                   | When                                                        |
-| ------------------------- | ----------------------------------------------------------- |
-| `minimax: loading…`       | Shown synchronously at session start (active provider only) |
-| `minimax: no credentials` | `MINIMAX_TOKEN_PLAN_API_KEY` unset or empty                 |
-| `minimax: no quota data`  | API returned an empty/unrecognized payload                  |
-| `minimax: error`          | Any other failure (network, auth, parse, etc.)              |
+| Message                                             | When                                                                                                                    |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `MiniMax Token Plan: loading…`                      | Shown synchronously at session start (active provider only)                                                             |
+| `MiniMax Token Plan: no credentials`                | `~/.pi/agent/auth.json` has no usable `minimax-cn` api-key (missing entry, oauth, empty key, parse error, file missing) |
+| `MiniMax Token Plan: need Token Plan key (sk-cp-…)` | `minimax-cn` key starts with `sk-api-` (pay-as-you-go); this extension only reads Token Plan keys                       |
+| `MiniMax Token Plan: no quota data`                 | API returned an empty/unrecognized payload                                                                              |
+| `MiniMax Token Plan: error`                         | Any other failure (network, auth, parse, etc.)                                                                          |
 
 ## Development
 

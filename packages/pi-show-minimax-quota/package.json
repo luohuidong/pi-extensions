@@ -1,7 +1,7 @@
 {
   "name": "pi-show-minimax-quota",
   "version": "0.1.0",
-  "description": "Shows MiniMax Token Plan quota (5h and 7d windows) in the pi TUI status bar. Reads the API key from the MINIMAX_TOKEN_PLAN_API_KEY environment variable.",
+  "description": "Shows MiniMax Token Plan quota (5h and 7d windows) in the pi TUI status bar. Reads the API key from ~/.pi/agent/auth.json (the minimax-cn provider entry).",
   "keywords": [
     "pi-package",
     "pi-extension",
