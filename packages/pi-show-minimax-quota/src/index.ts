@@ -13,7 +13,10 @@
  * so the user always sees roughly current usage while pi runs.
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { aggregate } from "./aggregate.ts";
 import { fetchQuota } from "./api.ts";
 import { resolveAuth } from "./auth.ts";
@@ -29,7 +32,8 @@ const TARGET_PROVIDER = "minimax-cn";
 
 const PLACEHOLDER_LOADING = "MiniMax Token Plan: loading…";
 const PLACEHOLDER_NO_CREDS = "MiniMax Token Plan: no credentials";
-const PLACEHOLDER_WRONG_TYPE = "MiniMax Token Plan: need Token Plan key (sk-cp-…)";
+const PLACEHOLDER_WRONG_TYPE =
+  "MiniMax Token Plan: need Token Plan key (sk-cp-…)";
 const PLACEHOLDER_NO_DATA = "MiniMax Token Plan: no quota data";
 const PLACEHOLDER_ERROR = "MiniMax Token Plan: error";
 

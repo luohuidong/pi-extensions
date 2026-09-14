@@ -30,7 +30,9 @@ describe("formatDuration", () => {
 
   it("formats days and hours, dropping minutes, for total ≥ 1d", () => {
     expect(formatDuration(24 * 60 * 60 * 1000)).toBe("1d0h");
-    expect(formatDuration(5 * 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000)).toBe("5d8h"); // spec example
+    expect(formatDuration(5 * 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000)).toBe(
+      "5d8h",
+    ); // spec example
   });
 
   it("rounds to the nearest minute (no seconds leaked through)", () => {

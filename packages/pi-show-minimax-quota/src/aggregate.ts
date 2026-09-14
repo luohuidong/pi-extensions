@@ -20,7 +20,8 @@ import type { QuotaModelRemain } from "./api.ts";
 // missing or malformed field to 0 so the status line always shows numbers
 // instead of crashing the format layer.
 function readPositive(value: number | null | undefined): number {
-  if (value === undefined || value === null || !Number.isFinite(value)) return 0;
+  if (value === undefined || value === null || !Number.isFinite(value))
+    return 0;
   return Math.max(0, value);
 }
 

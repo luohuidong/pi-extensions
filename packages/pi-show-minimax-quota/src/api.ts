@@ -18,7 +18,9 @@ interface QuotaResponse {
   model_remains?: unknown;
 }
 
-export async function fetchQuota(authHeader: string): Promise<QuotaModelRemain[] | null> {
+export async function fetchQuota(
+  authHeader: string,
+): Promise<QuotaModelRemain[] | null> {
   let res: Response;
   try {
     res = await fetch("https://api.minimaxi.com/v1/token_plan/remains", {
@@ -32,7 +34,9 @@ export async function fetchQuota(authHeader: string): Promise<QuotaModelRemain[]
 
   try {
     const body = (await res.json()) as QuotaResponse;
-    return Array.isArray(body.model_remains) ? (body.model_remains as QuotaModelRemain[]) : null;
+    return Array.isArray(body.model_remains)
+      ? (body.model_remains as QuotaModelRemain[])
+      : null;
   } catch {
     return null;
   }

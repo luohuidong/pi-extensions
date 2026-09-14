@@ -64,14 +64,20 @@ describe("aggregate", () => {
   });
 
   it("returns 0 ms when the first model's reset time is zero or negative", () => {
-    const result = aggregate([makeModel({ remains_time: 0, weekly_remains_time: -1 })]);
+    const result = aggregate([
+      makeModel({ remains_time: 0, weekly_remains_time: -1 }),
+    ]);
     expect(result.h5Ms).toBe(0);
     expect(result.d7Ms).toBe(0);
   });
 
   it("returns 0 percent for negative values", () => {
-    expect(aggregate([makeModel({ current_interval_remaining_percent: -5 })]).h5Pct).toBe(0);
-    expect(aggregate([makeModel({ current_weekly_remaining_percent: -1 })]).d7Pct).toBe(0);
+    expect(
+      aggregate([makeModel({ current_interval_remaining_percent: -5 })]).h5Pct,
+    ).toBe(0);
+    expect(
+      aggregate([makeModel({ current_weekly_remaining_percent: -1 })]).d7Pct,
+    ).toBe(0);
   });
 
   it("produces the documented example numbers: 5h 20%, 7d 30%", () => {

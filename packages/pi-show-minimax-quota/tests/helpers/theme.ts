@@ -18,4 +18,6 @@ export function makeTheme(): {
   };
 }
 
-export const theme = makeTheme() as unknown as Parameters<typeof formatStatusLine>[0];
+export const theme = makeTheme() as unknown as Parameters<
+  typeof formatStatusLine
+>[0];

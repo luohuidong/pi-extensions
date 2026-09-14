@@ -35,7 +35,11 @@ describe("resolveAuth", () => {
   });
 
   it("returns missing when the minimax-cn provider is absent", () => {
-    writeAuth(JSON.stringify({ "some-other-provider": { type: "api_key", key: "sk-other" } }));
+    writeAuth(
+      JSON.stringify({
+        "some-other-provider": { type: "api_key", key: "sk-other" },
+      }),
+    );
     expect(resolveAuth(authPath)).toEqual({ kind: "missing" });
   });
 
@@ -61,12 +65,19 @@ describe("resolveAuth", () => {
 
   it("returns wrong-type when the minimax-cn key is a pay-as-you-go (sk-api-) credential", () => {
     // PAYG keys authorize /account/query_balance, not the Token Plan endpoint.
-    writeAuth(JSON.stringify({ "minimax-cn": { type: "api_key", key: "sk-api-foo" } }));
+    writeAuth(
+      JSON.stringify({ "minimax-cn": { type: "api_key", key: "sk-api-foo" } }),
+    );
     expect(resolveAuth(authPath)).toEqual({ kind: "wrong-type" });
   });
 
   it("returns ok with a Bearer header when the minimax-cn api key is set", () => {
-    writeAuth(JSON.stringify({ "minimax-cn": { type: "api_key", key: "sk-cp-test" } }));
-    expect(resolveAuth(authPath)).toEqual({ kind: "ok", header: "Bearer sk-cp-test" });
+    writeAuth(
+      JSON.stringify({ "minimax-cn": { type: "api_key", key: "sk-cp-test" } }),
+    );
+    expect(resolveAuth(authPath)).toEqual({
+      kind: "ok",
+      header: "Bearer sk-cp-test",
+    });
   });
 });

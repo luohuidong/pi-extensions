@@ -7,7 +7,9 @@
 
 import type { QuotaModelRemain } from "../../src/api.ts";
 
-export function makeModel(overrides: Partial<QuotaModelRemain> = {}): QuotaModelRemain {
+export function makeModel(
+  overrides: Partial<QuotaModelRemain> = {},
+): QuotaModelRemain {
   return {
     remains_time: 2 * 60 * 60 * 1000,
     weekly_remains_time: 6 * 24 * 60 * 60 * 1000,
