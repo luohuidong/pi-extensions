@@ -15,10 +15,12 @@
 
 import type { QuotaModelRemain } from "./api.ts";
 
-// `null` / undefined / NaN / negative → 0; otherwise the value floored at 0.
-// Used for both percentages and millisecond durations: aggregate() drops any
-// missing or malformed field to 0 so the status line always shows numbers
-// instead of crashing the format layer.
+// `null` / undefined / NaN / ±Infinity / negative → 0; otherwise the value
+// floored at 0. Used for both percentages and millisecond durations:
+// aggregate() drops any missing or malformed field to 0 so the status line
+// always shows numbers instead of crashing the format layer. `Number.isFinite`
+// covers NaN and ±Infinity in one check; the JSON payload can't actually
+// carry ±Infinity, but the guard is free.
 function readPositive(value: number | null | undefined): number {
   if (value === undefined || value === null || !Number.isFinite(value))
     return 0;
