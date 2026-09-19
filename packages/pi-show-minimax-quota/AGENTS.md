@@ -98,7 +98,7 @@ packages/pi-show-minimax-quota/
 
 ## 代码风格
 
-Biome 风格(indent / lineWidth / quote / semicolon / trailing comma / organizeImports)由 workspace 根 `biome.json` 统一强制,本包的 `biome.json` 仅 `{"extends": "//"}`。Biome 只处理 `*.ts` / `*.json`;Markdown(本包的 `AGENTS.md` / `README.md`)交由 workspace 根目录的 [Prettier](https://prettier.io/docs/install) 处理。
+Biome 风格(indent / lineWidth / quote / semicolon / trailing comma / organizeImports)由 workspace 根 `biome.json` 统一强制,本包的 `biome.json` 在 `"extends": "//"` 基础上额外把 `files.includes` **收窄**到 `src/**/*.ts` / `tests/**/*.ts` / `*.json` —— 让 `pnpm check` 在包内跑时也不会误把 Markdown 当 Biome 的工作对象。Biome 只处理 `*.ts` / `*.json`;Markdown(本包的 `AGENTS.md` / `README.md`)交由 workspace 根目录的 [Prettier](https://prettier.io/docs/install) 处理。
 
 TypeScript 风格由 `tsconfig.json` 强制:
 

@@ -28,7 +28,8 @@
 ### Biome workspace 约定
 
 - 根 `biome.json` 负责所有 `formatter` / `linter` / `javascript` / `assist` / `vcs` / `files.includes` 基础设定。
-- 每个包自带一个 `biome.json`,只声明 `"extends": "//"`,自动继承根配置;当某个包需要偏离全局规则(例如禁用某条 lint 或关掉 formatter)时,只在对应包内追加字段即可,不要修改根配置。
+- 每个包自带一个 `biome.json`,**至少**声明 `"extends": "//"`;包级文件默认不要再写 `files.includes`,根配置已经覆盖 `**/*.ts` / `**/*.json`。仅当需要偏离全局规则(例如禁用某条 lint、关掉 formatter、或在包级 `files.includes` 里**收窄**到 `src/**` 与 `tests/**` 以避免误伤)时,才在对应包内追加字段,不要修改根配置。
+  - **严禁**在包级 `biome.json` 的 `files.includes` 里加入 `**/*.md` —— Markdown 由根目录 Prettier 负责,混入 Biome 会导致 `pnpm check` 在包内跑时格式化结果与 Prettier 冲突。
 - Biome 自下而上寻找最近配置:在包内跑 `biome check` 会自动用 `packages/<pkg>/biome.json`(继承根),在根目录跑则覆盖整个 workspace。
 
 ### Markdown 由 Prettier 处理
