@@ -26,7 +26,8 @@ packages/pi-show-minimax-quota/
 ├── tsconfig.json            # strict, ESNext, bundler 解析
 ├── .npmignore
 ├── src/
-│   ├── index.ts      扩展入口、事件钩子、`/minimax-quota` 命令
+│   ├── index.ts      扩展入口,只做事件钩子 → 控制器接线,以及 `/minimax-quota` 命令
+│   ├── line.ts       配额状态行控制器:`QuotaLine` 类(`#inflight` 并发去重 + `clear` / `showLoading` / `refresh` 公开方法),集中所有占位符常量与 `isProviderActive` / `TARGET_PROVIDER`
 │   ├── api.ts        Token Plan HTTP 客户端(5s 超时)
 │   ├── auth.ts       经宿主 readStoredCredential 读 ~/.pi/agent/auth.json 的 minimax-cn api_key,按 sk-cp- / sk-api- 前缀分流成 AuthResolution
 │   ├── aggregate.ts  取 model_remains[0] 直读 percent / 剩余时间(ms)
@@ -42,8 +43,8 @@ packages/pi-show-minimax-quota/
 
 ### 行为契约
 
-1. **激活门控**(`src/index.ts`): 仅当 `ctx.model?.provider === "minimax-cn"` 时扩展才渲染状态行;其它 provider 视为不适用,直接不写状态栏。中段切换通过 `model_select` 事件实时同步(切走清状态、切回重新拉取)。
-2. **占位符仅在激活期间出现**(`src/index.ts` 控制):
+1. **激活门控**(`src/line.ts` 的 `isProviderActive` + `QuotaLine#refresh`): 仅当 `ctx.model?.provider === "minimax-cn"` 时扩展才渲染状态行;其它 provider 视为不适用,直接不写状态栏。中段切换通过 `model_select` 事件实时同步(切走清状态、切回重新拉取)。
+2. **占位符仅在激活期间出现**(`src/line.ts` 控制):
    - `MiniMax Token Plan: loading…` —— `session_start` 同步显示(仅 minimax-cn)
    - `MiniMax Token Plan: no credentials` —— `~/.pi/agent/auth.json` 的 `minimax-cn` 条目不可用(缺失 / oauth 类型 / `key` 为空 / JSON 损坏 / 文件不存在)
    - `MiniMax Token Plan: need Token Plan key (sk-cp-…)` —— 条目存在但是 `sk-api-` 前缀(pay-as-you-go),授权的是 `/account/query_balance` 不是 Token Plan 端点
@@ -128,8 +129,8 @@ TypeScript 风格由 `tsconfig.json` 强制:
 
 ### 增加新占位符
 
-1. 在 `src/index.ts` 增加 `PLACEHOLDER_*` 常量
-2. 在 `refresh` 的对应分支用 `ctx.ui.theme.fg("dim", ...)` 设置
+1. 在 `src/line.ts` 的占位符常量区(`LOADING` / `NO_CREDS` / `WRONG_TYPE` / `NO_DATA` / `ERROR` 旁边)增加新的 `const`
+2. 在 `QuotaLine#render` 或 `refresh` 的对应分支用 `ctx.ui.theme.fg("dim", ...)` 写回
 3. 同步更新 `README.md` 的"Status messages"表
 
 ### 增加新的统计窗口
@@ -160,7 +161,7 @@ TypeScript 风格由 `tsconfig.json` 强制:
 - `formatDuration` 不会输出 `0s`;`0` 或负数 → `"0m"`
 - 占位符使用 `dim` 主题色,不要换成彩色,避免误读为"高配额"
 - `auth.ts` 经宿主 `readStoredCredential(PROVIDER_ID, authPath?)` 读 `~/.pi/agent/auth.json`;测试用 `mkdtempSync` + 写文件覆盖各种形态,`afterEach` 清理临时目录。新增用例必须覆盖 `sk-api-` 前缀(`kind: "wrong-type"`)
-- `index.ts` 的 `isProviderActive` 是 provider 门控唯一来源;`session_start` / `agent_settled` / `model_select` / 命令处理器都要走它。`ctx.model` 在 `session_start` 时通常已经可用,但允许 `undefined`(此时视为非激活)
+- `src/line.ts` 的 `isProviderActive` 是 provider 门控唯一来源;`session_start` / `agent_settled` / `model_select` / 命令处理器都要走它(`index.ts` 仅做事件接线,不做门控判断之外的逻辑)。`ctx.model` 在 `session_start` 时通常已经可用,但允许 `undefined`(此时视为非激活)
 - `model_select` 用 `event.model.provider`,不要换成 `ctx.model`(切换瞬间两者可能不一致)
 - 测试中 `theme` 是 `as unknown as Parameters<typeof formatStatusLine>[0]` 强转,新增 `format*` 函数时记得更新此断言的导入类型
 
