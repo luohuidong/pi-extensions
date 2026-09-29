@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**/*.ts", "**/*.json"]
+    "includes": ["biome.json", "package.json", "pnpm-workspace.yaml"]
   },
   "formatter": {
     "enabled": true,
