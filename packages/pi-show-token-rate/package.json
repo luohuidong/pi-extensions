@@ -1,0 +1,43 @@
+{
+  "name": "pi-show-token-rate",
+  "version": "0.1.0",
+  "description": "Shows the live output token rate (tok/s) of the current model in the pi TUI status bar.",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "tokens",
+    "token-rate",
+    "tps",
+    "tui"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "tsc --noEmit",
+    "format": "biome format --write",
+    "md:format": "prettier --write \"**/*.md\"",
+    "lint": "biome lint",
+    "check": "biome check",
+    "md:check": "prettier --check \"**/*.md\"",
+    "fix": "biome check --write",
+    "verify": "pnpm typecheck && pnpm check && pnpm md:check && pnpm test",
+    "prepublishOnly": "pnpm verify"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.85.1"
+  }
+}
