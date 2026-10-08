@@ -8,6 +8,7 @@ import { describe, it } from "node:test";
 import {
   countContentChars,
   estimateTokensFromChars,
+  LIVE_WINDOW_MS,
   type RateSample,
   RateTracker,
   summarize,
@@ -214,6 +215,71 @@ describe("RateTracker", () => {
     tracker.abort();
     expect(tracker.streaming).toBe(false);
     expect(tracker.liveRate()).toBeNull();
+  });
+
+  it("matches the trailing-window definition over a long, dense stream", () => {
+    // The tracker prunes incrementally rather than rebuilding its window on
+    // every delta, so pin `liveRate()` against the definition it has to
+    // reproduce: the newest observation minus the newest observation at/before
+    // `now - LIVE_WINDOW_MS`. Thousands of observations cross the compaction
+    // threshold many times over, which a per-step rebuild would have masked.
+    const observed: { at: number; tokens: number }[] = [];
+    const tracker = new RateTracker();
+    tracker.arm();
+
+    let tokens = 0;
+    // Irregular pacing: gaps that both fall inside and straddle the window, so
+    // the baseline advances by one point, by many, and by every point.
+    const gaps = [4, 7, 120, 900, 3_100, 11, 260, 2_950, 6];
+    let now = 10_000;
+    for (let i = 0; i < 5_000; i += 1) {
+      now += gaps[i % gaps.length];
+      tokens += (i % 5) + 1;
+      observed.push({ at: now, tokens });
+      tracker.observe(now, tokens, "usage");
+
+      const current = observed[observed.length - 1];
+      let baseline = observed[0];
+      for (const point of observed) {
+        if (point.at <= current.at - LIVE_WINDOW_MS) baseline = point;
+        else break;
+      }
+      const elapsedMs = current.at - baseline.at;
+      const delta = current.tokens - baseline.tokens;
+      assert.strictEqual(
+        tracker.liveRate(),
+        elapsedMs <= 0 || delta <= 0 ? null : (delta * 1000) / elapsedMs,
+        `liveRate() diverged at observation ${i} (t=${now}, tokens=${tokens})`,
+      );
+    }
+
+    // The whole generation window still survives the incremental pruning:
+    // the first observation counted 1 token, which `finish()` excludes.
+    const sample = tracker.finish(now + 50, tokens, "usage");
+    assert.ok(sample);
+    expect(sample.tokens).toBe(tokens - 1);
+    expect(sample.source).toBe("usage");
+  });
+
+  it("keeps the live rate readable across a pause longer than the window", () => {
+    // A stall longer than the window retires every checkpoint in one go. The
+    // baseline advances to the last delta before the pause rather than
+    // vanishing, so the first reading afterwards still measures from a real
+    // observation instead of going blank.
+    const tracker = new RateTracker();
+    tracker.arm();
+    for (let i = 1; i <= 20; i += 1) tracker.observe(i * 100, i * 10, "usage");
+    expect(tracker.liveRate()).toBe(100);
+
+    // 4s after the last delta, so the whole window aged out at once: 300
+    // tokens since the pre-pause checkpoint over 7000ms.
+    tracker.observe(9_000, 500, "usage");
+    expect(tracker.liveRate()).toBe((300 * 1000) / 7_000);
+    expect(tracker.streaming).toBe(true);
+
+    // The next delta re-baselines on the post-pause one: 300 tokens / 3500ms.
+    tracker.observe(12_500, 800, "usage");
+    expect(tracker.liveRate()).toBe((300 * 1000) / 3_500);
   });
 });
 

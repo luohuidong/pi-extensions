@@ -34,6 +34,13 @@ const CHARS_PER_TOKEN = 4;
 export const LIVE_WINDOW_MS = 3_000;
 
 /**
+ * How many consumed checkpoints may pile up in front of the cursor before
+ * they are reclaimed in one splice. Bounds the dead prefix to a few hundred
+ * bytes while amortizing the compaction over that many deltas.
+ */
+const PRUNE_SLACK = 64;
+
+/**
  * Where a token count came from:
  *
  *   - `usage` — the provider reported real output tokens (authoritative)
@@ -128,11 +135,22 @@ function argumentsChars(args: unknown): number {
  *
  * Two checkpoint sets are kept: `#first` pins the start of the generation
  * window so `finish()` can still average the whole response after pruning,
- * and `#checkpoints` holds only the trailing window that `liveRate()`
- * reads.
+ * and `#recent` holds the trailing window that `liveRate()` reads.
+ *
+ * `#recent` is never rebuilt. Checkpoints arrive in non-decreasing `at` order
+ * and only ever fall off the *front* of the window, so `#head` walks the
+ * consumed prefix forward once per checkpoint over the whole response
+ * (amortized O(1)) instead of re-copying the window on every single delta.
+ * `liveRate()` reads exactly two points — the newest and the baseline — so
+ * the points in between are dead weight that only has to survive until they
+ * are consumed.
  */
 export class RateTracker {
-  #checkpoints: Checkpoint[] = [];
+  #recent: Checkpoint[] = [];
+  /** Index of the oldest checkpoint that can still become a baseline. */
+  #head = 0;
+  /** Newest checkpoint at/before the window cutoff, once one exists. */
+  #baseline: Checkpoint | undefined;
   #first: WindowStart | undefined;
   #armed = false;
 
@@ -143,7 +161,7 @@ export class RateTracker {
 
   /** True once at least one token has been observed for this response. */
   get streaming(): boolean {
-    return this.#checkpoints.length > 0;
+    return this.#recent.length > this.#head;
   }
 
   /**
@@ -161,8 +179,7 @@ export class RateTracker {
 
   /** Mark a response as in flight. Drops any state from the previous one. */
   arm(): void {
-    this.#checkpoints = [];
-    this.#first = undefined;
+    this.#reset();
     this.#armed = true;
   }
 
@@ -180,7 +197,7 @@ export class RateTracker {
   observe(at: number, tokens: number, source: TokenSource): void {
     if (!this.#armed) this.arm();
 
-    const last = this.#checkpoints.at(-1);
+    const last = this.#recent.at(-1);
     if (last) {
       if (at <= last.at || tokens < last.tokens) return;
       // Stay on the scale the window opened with. `finish()` is where a
@@ -190,7 +207,7 @@ export class RateTracker {
       this.#first = { at, tokens, source };
     }
 
-    this.#checkpoints.push({ at, tokens });
+    this.#recent.push({ at, tokens });
     this.#prune(at);
   }
 
@@ -199,15 +216,19 @@ export class RateTracker {
    * `null` when nothing was observed yet, when the window holds a single
    * point, or when no new token arrived inside it.
    *
-   * The window length is not a parameter: `#prune` already discards anything
+   * The window length is not a parameter: `#prune` already retires anything
    * older than `LIVE_WINDOW_MS`, so a wider window could only ever read from
    * checkpoints that no longer exist.
    */
   liveRate(): number | null {
-    const current = this.#checkpoints.at(-1);
+    const current = this.#recent.at(-1);
     if (!current) return null;
 
-    const baseline = this.#baselineAt(current.at);
+    // Before anything has aged out of the window there is no baseline yet;
+    // the oldest checkpoint standing then plays the same role.
+    const baseline = this.#baseline ?? this.#recent[this.#head];
+    if (!baseline) return null;
+
     const elapsedMs = current.at - baseline.at;
     const tokens = current.tokens - baseline.tokens;
     if (elapsedMs <= 0 || tokens <= 0) return null;
@@ -223,9 +244,7 @@ export class RateTracker {
    */
   finish(at: number, tokens: number, source: TokenSource): RateSample | null {
     const first = this.#first;
-    this.#checkpoints = [];
-    this.#first = undefined;
-    this.#armed = false;
+    this.#reset();
 
     if (!first) return null;
     const elapsedMs = at - first.at;
@@ -247,32 +266,35 @@ export class RateTracker {
 
   /** Drop the in-flight response without producing a sample. */
   abort(): void {
-    this.#checkpoints = [];
+    this.#reset();
+  }
+
+  /** Forget every checkpoint and the generation window that opened on it. */
+  #reset(): void {
+    this.#recent = [];
+    this.#head = 0;
+    this.#baseline = undefined;
     this.#first = undefined;
     this.#armed = false;
   }
 
-  /** Newest checkpoint at/before the window start; falls back to the oldest. */
-  #baselineAt(now: number): Checkpoint {
-    const cutoff = now - LIVE_WINDOW_MS;
-    let baseline = this.#checkpoints[0];
-    for (const checkpoint of this.#checkpoints) {
-      if (checkpoint.at <= cutoff) baseline = checkpoint;
-      else break;
-    }
-    return baseline;
-  }
-
-  /** Keep the window's tail plus the single baseline in front of it. */
+  /**
+   * Retire the checkpoints that just fell out of the trailing window, keeping
+   * the newest of them as the next baseline. The cursor only moves forward, so
+   * each checkpoint is visited once for the whole response; the consumed
+   * prefix is dropped in one splice once it has grown past {@link PRUNE_SLACK},
+   * which keeps `#recent` bounded without paying for it on every delta.
+   */
   #prune(now: number): void {
     const cutoff = now - LIVE_WINDOW_MS;
-    let baseline: Checkpoint | undefined;
-    const kept: Checkpoint[] = [];
-    for (const checkpoint of this.#checkpoints) {
-      if (checkpoint.at <= cutoff) baseline = checkpoint;
-      else kept.push(checkpoint);
+    while (this.#recent[this.#head]?.at <= cutoff) {
+      this.#baseline = this.#recent[this.#head];
+      this.#head += 1;
     }
-    this.#checkpoints = baseline ? [baseline, ...kept] : kept;
+    if (this.#head > PRUNE_SLACK) {
+      this.#recent.splice(0, this.#head);
+      this.#head = 0;
+    }
   }
 }
 

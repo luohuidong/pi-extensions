@@ -109,9 +109,12 @@ pnpm typecheck     # tsc --noEmit
 
 Tests cover the character estimator, the tracker (windowing, monotonicity,
 pruning), the summary math, the exact status-line strings, and the controller's
-throttling and toggle behavior. The suite drives an injected clock, so no test
-depends on wall-clock timing, and it uses a stub theme instead of the real ANSI
-palette.
+throttling and toggle behavior. The windowing test is a differential one: it
+replays thousands of irregularly-spaced observations and checks `liveRate()`
+against the trailing-window definition at every step, so the tracker's
+incremental pruning cannot drift from it. The suite drives an injected clock,
+so no test depends on wall-clock timing, and it uses a stub theme instead of
+the real ANSI palette.
 
 ## License
 

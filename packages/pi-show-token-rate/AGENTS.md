@@ -125,7 +125,9 @@ TypeScript 风格由 `tsconfig.json` 强制:`strict`、`module: ESNext`、`modul
 - `finish()` 用独立的 `#first` 而不是剪枝后的 `#checkpoints[0]`
 - `#first` 上的 `source` 字段与 `finish()` 里“两种刻度不相减”的分支(丢了会让估算基线污染 usage 终值)
 - `observe()` 里丢弃异刻度观测的那两行,以及 `RateTracker#windowSource`(丢了就会在混合刻度时既制造尖峰又丢 `~`)
-- `liveRate()` 不接受窗口参数(`#prune` 已经按 `LIVE_WINDOW_MS` 丢弃了更早的 checkpoint,加参数只会得到静默错误的结果)
+- `liveRate()` 不接受窗口参数(`#prune` 已经按 `LIVE_WINDOW_MS` 退出了更早的 checkpoint,加参数只会得到静默错误的结果)
+- `RateTracker` 的 `#recent` / `#head` / `#baseline` 头指针剪枝(`src/rate.ts`):`liveRate()` 只读**最新点**与**基线点**两个点,中间的历史点从不被读取。改回“每次 observe 重建整个数组”会让单个 delta 的成本随事件速率线性增长(实测 1000 ev/s 时占 2.1% CPU,2000 ev/s 时占 7.8%)
+- `PRUNE_SLACK`(游标超过该值才做一次 `splice` 回收已消费前缀):不调它不影响任何可观测行为,但会让 `#recent` 随响应长度无界增长(10 分钟 / 100 ev/s ≈ 3 MB 瞬时垃圾)
 - 颜色阈值(`FAST_MIN = 50`、`SLOW_MIN = 20`)
 - `peerDependencies` 中 `@earendil-works/pi-coding-agent` 必须是 `*`(扩展按宿主版本加载)
 - 不要引入网络请求 / 凭据读取:本扩展的数据**只**来自 pi 事件流
@@ -136,6 +138,7 @@ TypeScript 风格由 `tsconfig.json` 强制:`strict`、`module: ESNext`、`modul
 - `AgentMessage` 是联合类型,除 `AssistantMessage` 外还有 `BashExecutionMessage` 等成员,没有 `stopReason`。想读它必须先 `role === "assistant"` 收窄,或用 `Extract<MessageEndEvent["message"], { role: "assistant" }>`(`line.ts` 里的 `AssistantMessage` 别名)
 - `ContentBlock` 不能带索引签名:带了索引签名之后 `AssistantMessage["content"]` 反而不可赋值(TS 报 "Index signature for type 'string' is missing")
 - `message.usage.output` 在 assistant 消息上是必填数字,但 provider 可能给 0;判断"是否上报"要用 `Number.isFinite(usage) && usage > 0`
-- `expect()` 兼容壳没有 `.not`,也不支持 `toBeCloseTo`;需要精确相等就设计出能整除的时间 / token 数
+- `expect()` 兼容壳没有 `.not`,也不支持 `toBeCloseTo`;需要精确相等就设计出能整除的时间 / token 数。浮点断言可以直接写 `(300 * 1000) / 7_000` 这种表达式与实现对齐
+- `RateTracker` 的窗口语义被 `tests/rate.test.ts` 里的**差分测试**锁住:它按定义(最新点 − `now - LIVE_WINDOW_MS` 之前最新的点)重算每一步的 `liveRate()` 并逐点比对,改动剪枝逻辑后先看它;故意改坏剪枝窗口或 baseline 游标,它会失败
 - 测试里想让 `/token-rate` 的控制器走假时钟,必须在 `extension(pi)` **之前**装 `t.mock.timers`:控制器构造时就把 `Date.now` 存成了默认时钟,后装的 mock 只替换 `Date.now` 属性,已捕获的引用不受影响
 - `tests/index.test.ts` 只断言"接线正确、命令能跑通",不要在里面复制 `line.test.ts` 的速率断言
