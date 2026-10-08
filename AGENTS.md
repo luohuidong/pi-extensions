@@ -58,7 +58,7 @@
 | Biome 自动修复       | `pnpm fix`(`biome check --write`)                                                 |
 | 单包操作             | `pnpm -F <pkg> <script>`,例如 `pnpm -F pi-show-minimax-quota test`                |
 
-发布前会自动跑 `pnpm verify`(`prepublishOnly`),由各包的 `package.json` 控制。
+发布前会自动跑各包自己的 `prepublishOnly`(typecheck + test);Biome / Prettier 的校验只在 workspace 根通过 `pnpm verify` 执行。
 
 ## 代码风格
 

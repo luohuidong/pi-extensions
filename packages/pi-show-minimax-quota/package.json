@@ -24,14 +24,7 @@
   "scripts": {
     "test": "node --test",
     "typecheck": "tsc --noEmit",
-    "format": "biome format --write",
-    "md:format": "prettier --write \"**/*.md\"",
-    "lint": "biome lint",
-    "check": "biome check",
-    "md:check": "prettier --check \"**/*.md\"",
-    "fix": "biome check --write",
-    "verify": "pnpm typecheck && pnpm check && pnpm md:check && pnpm test",
-    "prepublishOnly": "pnpm verify"
+    "prepublishOnly": "pnpm typecheck && pnpm test"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

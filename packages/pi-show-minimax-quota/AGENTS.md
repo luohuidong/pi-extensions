@@ -79,23 +79,18 @@ packages/pi-show-minimax-quota/
 
 ## 开发工作流
 
-`biome` 在 workspace 根 `node_modules` 可用(由 pnpm 提升),所以包内脚本调用 `biome` 也能直接找到。
+测试全部交给 `node --test`(`pi-show-minimax-quota` 在 Node 22.7+ 自带 strip-types;`import` 必须用 `.ts` 后缀)。
 
-| 任务                 | 命令                                                                              |
-| -------------------- | --------------------------------------------------------------------------------- |
-| 安装依赖             | `pnpm install`(在 workspace 根)                                                   |
-| 跑测试               | `pnpm test`(`node --test`,Node 22.7+ 自带 strip-types;`import` 必须用 `.ts` 后缀) |
-| 类型检查             | `pnpm typecheck`(`tsc --noEmit`)                                                  |
-| 全量校验             | `pnpm verify`(typecheck + `pnpm check` + `pnpm md:check` + test)                  |
-| 格式化 `*.ts/*.json` | `pnpm format`(`biome format --write`)                                             |
-| 格式化 `*.md`        | `pnpm md:format`(`prettier --write "**/*.md"`)                                    |
-| Lint                 | `pnpm lint`(`biome lint`)                                                         |
-| Biome check          | `pnpm check`                                                                      |
-| Markdown check       | `pnpm md:check`(`prettier --check "**/*.md"`)                                     |
-| Biome 自动修复       | `pnpm fix`(`biome check --write`)                                                 |
-| 发布前               | `pnpm prepublishOnly`(自动跑 `pnpm verify`)                                       |
+| 任务     | 命令                                                  |
+| -------- | ----------------------------------------------------- |
+| 安装依赖 | `pnpm install`(在 workspace 根)                       |
+| 跑测试   | `pnpm test`(`node --test`;`import` 必须用 `.ts` 后缀) |
+| 类型检查 | `pnpm typecheck`(`tsc --noEmit`)                      |
+| 发布前   | `pnpm prepublishOnly`(自动跑 typecheck + test)        |
 
-发布前会自动跑 `pnpm verify`(`prepublishOnly`)。
+Biome / Prettier 只在 workspace 根执行(`pnpm format` / `pnpm check` / `pnpm md:check` 等),本包不再重复定义这些脚本;Biome 自下而上会自动拾取本包的 `biome.json`。
+
+发布前会自动跑 `prepublishOnly`(typecheck + test)。
 
 ## 代码风格
 
