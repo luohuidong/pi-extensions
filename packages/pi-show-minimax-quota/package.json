@@ -10,6 +10,15 @@
     "token-plan"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luohuidong/pi-extensions.git",
+    "directory": "packages/pi-show-minimax-quota"
+  },
+  "bugs": {
+    "url": "https://github.com/luohuidong/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/luohuidong/pi-extensions/tree/main/packages/pi-show-minimax-quota#readme",
   "type": "module",
   "files": [
     "src/",

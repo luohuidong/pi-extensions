@@ -11,6 +11,15 @@
     "tui"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luohuidong/pi-extensions.git",
+    "directory": "packages/pi-show-token-rate"
+  },
+  "bugs": {
+    "url": "https://github.com/luohuidong/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/luohuidong/pi-extensions/tree/main/packages/pi-show-token-rate#readme",
   "type": "module",
   "files": [
     "src/",
