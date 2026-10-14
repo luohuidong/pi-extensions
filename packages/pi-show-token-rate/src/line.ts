@@ -1,45 +1,45 @@
 /**
  * Token-rate status line controller.
  *
- * Owns the footer entry: it observes assistant stream events, turns them
- * into a rate, throttles the writes so a 100 tok/s stream does not ask the
- * TUI to re-render 100 times a second, and keeps the session statistics the
- * line and `/token-rate stats` read from.
+ * Owns the footer entry: it observes assistant stream events, turns them into
+ * a live rate, throttles the writes so a 100 tok/s stream does not ask the TUI
+ * to re-render 100 times a second, and keeps the last reading once the
+ * response ends.
+ *
+ * Only streaming output is measured. There is no settled rate and no session
+ * history — while the model streams the line shows the current rate (coloured
+ * by speed), and afterwards it keeps the last reading dimmed.
  *
  * The controller holds no timers and no handles — pi delivers stream events
- * for the lifetime of a response, and `message_end` is the last one. That
- * keeps `session_shutdown` a no-op and avoids the "start resources in
- * `session_start`" trap the extension API warns about.
+ * for the lifetime of a response, and `message_end` is the last one.
  */
 
 import type {
   ExtensionContext,
   MessageEndEvent,
+  MessageStartEvent,
   MessageUpdateEvent,
 } from "@earendil-works/pi-coding-agent";
 
 import { formatStatusLine } from "./format.ts";
 import {
-  countContentChars,
-  estimateTokensFromChars,
-  type RateSample,
-  type RateSummary,
+  type CharCount,
+  countWideChars,
+  emptyCharCount,
+  estimateTokens,
+  type LiveRate,
   RateTracker,
-  summarize,
-} from "./rate.ts";
+} from "./rate/index.ts";
 
-/** Footer row identifier. Locked: other extensions may look the row up. */
+/** Footer row identifier. */
 const STATUS_KEY = "token-rate";
 
 /**
- * Minimum gap between footer writes while streaming. 150ms is ~6 updates per
- * second — fast enough to look live, slow enough to stay off the render path
- * of every token delta.
+ * Minimum gap between footer writes while streaming. ~6 updates per second is
+ * fast enough to look live, slow enough to stay off the render path of every
+ * token delta.
  */
 const WRITE_INTERVAL_MS = 150;
-
-/** Cap on retained samples, so a very long session cannot grow unbounded. */
-const MAX_SAMPLES = 200;
 
 type StreamEvent = MessageUpdateEvent["assistantMessageEvent"];
 type AssistantMessage = Extract<
@@ -47,22 +47,22 @@ type AssistantMessage = Extract<
   { role: "assistant" }
 >;
 
-/** Characters carried by a token-bearing stream event; 0 for lifecycle events. */
-function deltaChars(event: StreamEvent): number {
+/** Text carried by a token-bearing stream event; undefined for the rest. */
+function deltaText(event: StreamEvent): string | undefined {
   switch (event.type) {
     case "text_delta":
     case "thinking_delta":
     case "toolcall_delta":
-      return event.delta.length;
+      return event.delta;
     default:
-      return 0;
+      return undefined;
   }
 }
 
 /**
  * Stop reasons that end a response without finishing it. pi still emits
- * `message_end` for these, and the window they produce is a truncated sample
- * of a model that was cut off — folding it into `avg` / `peak` would bias both.
+ * `message_end` for these, and the half-window they leave behind is not a rate
+ * the model sustained — dropping it keeps the frozen line honest.
  */
 function isDroppedResponse(message: AssistantMessage): boolean {
   return message.stopReason === "aborted" || message.stopReason === "error";
@@ -70,9 +70,11 @@ function isDroppedResponse(message: AssistantMessage): boolean {
 
 export class TokenRateLine {
   #tracker = new RateTracker();
-  #samples: RateSample[] = [];
-  #chars = 0;
+  #count: CharCount = emptyCharCount();
   #visible = true;
+  #streaming = false;
+  /** Last still-readable live rate; what the idle line shows. */
+  #frozen: LiveRate | undefined;
   #lastWriteAt = Number.NEGATIVE_INFINITY;
   #rendered: string | undefined;
   readonly #now: () => number;
@@ -82,25 +84,27 @@ export class TokenRateLine {
     this.#now = now;
   }
 
-  /** Session start: forget everything, including any line a reload left behind. */
+  /** Session start: forget everything, including a line a reload left behind. */
   start(ctx: ExtensionContext): void {
-    this.#tracker.abort();
-    this.#samples = [];
-    this.#chars = 0;
+    this.#tracker.reset();
+    this.#count = emptyCharCount();
     this.#visible = true;
+    this.#streaming = false;
+    this.#frozen = undefined;
     this.#lastWriteAt = Number.NEGATIVE_INFINITY;
     this.#rendered = undefined;
     this.#write(ctx, undefined);
   }
 
-  /** A new assistant message begins; the generation window reopens here. */
+  /** A new assistant message begins; the measurement window reopens here. */
   onMessageStart(
     ctx: ExtensionContext,
-    message: MessageEndEvent["message"],
+    message: MessageStartEvent["message"],
   ): void {
     if (!ctx.hasUI || message.role !== "assistant") return;
-    this.#tracker.arm();
-    this.#chars = 0;
+    this.#tracker.reset();
+    this.#count = emptyCharCount();
+    this.#streaming = true;
     // The next delta writes immediately instead of waiting out an old throttle.
     this.#lastWriteAt = Number.NEGATIVE_INFINITY;
   }
@@ -111,25 +115,37 @@ export class TokenRateLine {
     const message = event.message;
     if (message.role !== "assistant") return;
 
-    const chars = deltaChars(event.assistantMessageEvent);
-    if (chars === 0) return;
+    const delta = deltaText(event.assistantMessageEvent);
+    if (!delta) return;
 
     const now = this.#now();
-    this.#chars += chars;
+    const wide = countWideChars(delta);
+    // Tool-call JSON is charged against its own, denser ratio; answer and
+    // thinking text against prose.
+    if (event.assistantMessageEvent.type === "toolcall_delta") {
+      this.#count.toolChars += delta.length;
+      this.#count.toolWideChars += wide;
+    } else {
+      this.#count.textChars += delta.length;
+      this.#count.textWideChars += wide;
+    }
+
+    // Feed both scales: providers disagree on when `usage.output` moves, and
+    // the tracker picks whichever window is measurable. A provider count that
+    // does not advance cannot freeze the number because the estimate window
+    // keeps collecting points.
     const usage = message.usage.output;
-    const reported = Number.isFinite(usage) && usage > 0;
-    this.#tracker.observe(
-      now,
-      reported ? usage : estimateTokensFromChars(this.#chars),
-      reported ? "usage" : "estimate",
-    );
+    if (Number.isFinite(usage) && usage > 0) {
+      this.#tracker.observe(now, usage, "usage");
+    }
+    this.#tracker.observe(now, estimateTokens(this.#count), "estimate");
 
     if (now - this.#lastWriteAt < WRITE_INTERVAL_MS) return;
     this.#lastWriteAt = now;
     this.#render(ctx, true);
   }
 
-  /** The response is done: record the sample and repaint the settled rate. */
+  /** The response is done: freeze the last live reading and dim the line. */
   onMessageEnd(
     ctx: ExtensionContext,
     message: MessageEndEvent["message"],
@@ -137,37 +153,19 @@ export class TokenRateLine {
     if (!ctx.hasUI || message.role !== "assistant") return;
 
     if (isDroppedResponse(message)) {
-      // Interrupted or failed: keep the previous settled line instead of
-      // showing a rate that was never really measured.
-      this.#tracker.abort();
-      this.#lastWriteAt = Number.NEGATIVE_INFINITY;
-      this.#render(ctx, false);
-      return;
+      // Interrupted or failed: keep the previous reading instead of freezing a
+      // rate that was never really measured.
+      this.#tracker.reset();
+    } else {
+      // Capture the freshest window value before dropping the trackers, so the
+      // idle line shows where the stream actually ended.
+      const live = this.#tracker.live(this.#now());
+      if (live) this.#frozen = live;
+      this.#tracker.reset();
     }
 
-    const usage = message.usage.output;
-    const reported = Number.isFinite(usage) && usage > 0;
-    // Without provider usage, prefer the richest estimate available: chars
-    // accumulated from deltas, or the finished content if it holds more.
-    // Counting the content is the expensive half (it stringifies tool-call
-    // arguments), so it stays behind the `reported` check.
-    const tokens = reported
-      ? usage
-      : Math.max(
-          estimateTokensFromChars(this.#chars),
-          estimateTokensFromChars(countContentChars(message.content)),
-        );
-
-    const sample = this.#tracker.finish(
-      this.#now(),
-      tokens,
-      reported ? "usage" : "estimate",
-    );
-    if (sample) {
-      this.#samples.push(sample);
-      if (this.#samples.length > MAX_SAMPLES) this.#samples.shift();
-    }
-
+    this.#count = emptyCharCount();
+    this.#streaming = false;
     this.#lastWriteAt = Number.NEGATIVE_INFINITY;
     this.#render(ctx, false);
   }
@@ -175,21 +173,15 @@ export class TokenRateLine {
   /** Flip the line on or off. Returns the new visibility. */
   toggle(ctx: ExtensionContext): boolean {
     this.#visible = !this.#visible;
-    this.#render(ctx, this.#tracker.streaming);
+    this.#render(ctx, this.#streaming);
     return this.#visible;
   }
 
-  /** Forget collected samples, keep the current visibility. */
-  reset(ctx: ExtensionContext): void {
-    this.#samples = [];
-    this.#render(ctx, this.#tracker.streaming);
-  }
-
-  summary(): RateSummary {
-    return summarize(this.#samples);
-  }
-
-  /** Live rate while streaming, last response's rate once settled. */
+  /**
+   * Streaming paints the live rate, coloured by speed, under a green marker;
+   * before anything is measurable it keeps the last reading dimmed instead of
+   * blanking the row. Idle repaints the frozen reading with no accent.
+   */
   #render(ctx: ExtensionContext, streaming: boolean): void {
     if (!this.#visible) {
       // Forget the cached line so showing it again always repaints — but
@@ -200,25 +192,25 @@ export class TokenRateLine {
       return;
     }
 
-    const live = streaming ? this.#tracker.liveRate() : null;
-    // Nothing measurable yet for this response (no token inside the window) —
-    // keep the previous line instead of blanking it out mid-stream.
-    if (streaming && live === null) return;
-
-    const summary = this.summary();
-    const rate = live ?? summary.last?.tokPerSec;
-    // The live rate is a difference of the window's checkpoints, so it counts
-    // as estimated exactly when the window opened on estimates — a provider
-    // that starts reporting usage mid-stream keeps the `~` until the response
-    // settles on the reported count.
-    const source =
-      live !== null ? this.#tracker.windowSource : summary.last?.source;
+    let view: LiveRate | undefined;
+    let measured = false;
+    if (streaming) {
+      // `now` matters: a scale whose newest checkpoint has fallen out of the
+      // trailing window is not measurable, and the other scale answers instead.
+      const live = this.#tracker.live(this.#now());
+      // Nothing measurable yet for this response — keep the last known reading
+      // rather than blanking the row, but leave the number dim: only the green
+      // marker says the model is streaming.
+      view = live ?? this.#frozen;
+      measured = live !== null;
+    } else {
+      view = this.#frozen;
+    }
 
     const text = formatStatusLine(ctx.ui.theme, {
-      rate,
-      estimated: source === "estimate",
-      // One response has no "average" — it would just repeat the last value.
-      average: summary.count >= 2 ? summary.average : undefined,
+      rate: view?.tokPerSec,
+      streaming,
+      measured,
     });
 
     if (text === this.#rendered) return;

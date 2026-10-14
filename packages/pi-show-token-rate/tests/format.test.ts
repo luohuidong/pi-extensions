@@ -1,10 +1,9 @@
 /**
- * Status-line and summary formatting.
+ * Status-line formatting, including the spec's colour buckets.
  */
 
 import { describe, it } from "node:test";
-import { formatRate, formatStatusLine, formatSummary } from "../src/format.ts";
-import type { RateSample } from "../src/rate.ts";
+import { formatRate, formatStatusLine } from "../src/format.ts";
 import { expect } from "./helpers/expect.ts";
 import { theme } from "./helpers/theme.ts";
 
@@ -42,83 +41,87 @@ describe("formatStatusLine", () => {
     );
   });
 
-  it("colours the rate by speed bucket", () => {
+  it("paints the marker green while streaming and dim once it stops", () => {
+    expect(formatStatusLine(theme, { rate: 62, streaming: true })).toBe(
+      "[success]⚡[/] [success]62[/] [dim]tok/s[/]",
+    );
+    // The marker is green even when the rate itself is yellow or red.
+    expect(formatStatusLine(theme, { rate: 30, streaming: true })).toBe(
+      "[success]⚡[/] [warning]30[/] [dim]tok/s[/]",
+    );
+    expect(formatStatusLine(theme, { rate: 2.5, streaming: true })).toBe(
+      "[success]⚡[/] [error]2.5[/] [dim]tok/s[/]",
+    );
+    // Idle, whatever the colour the rate would have had: the marker is dim.
+    expect(formatStatusLine(theme, { rate: 62 })).toBe(
+      "[dim]⚡[/] [dim]62[/] [dim]tok/s[/]",
+    );
+  });
+
+  it("is green above 50 tok/s", () => {
+    expect(formatStatusLine(theme, { rate: 51, streaming: true })).toBe(
+      "[success]⚡[/] [success]51[/] [dim]tok/s[/]",
+    );
+    expect(formatStatusLine(theme, { rate: 240, streaming: true })).toBe(
+      "[success]⚡[/] [success]240[/] [dim]tok/s[/]",
+    );
+  });
+
+  it("is yellow from 10 through 50 tok/s", () => {
+    expect(formatStatusLine(theme, { rate: 10, streaming: true })).toBe(
+      "[success]⚡[/] [warning]10[/] [dim]tok/s[/]",
+    );
+    expect(formatStatusLine(theme, { rate: 50, streaming: true })).toBe(
+      "[success]⚡[/] [warning]50[/] [dim]tok/s[/]",
+    );
+    expect(formatStatusLine(theme, { rate: 30.4, streaming: true })).toBe(
+      "[success]⚡[/] [warning]30[/] [dim]tok/s[/]",
+    );
+  });
+
+  it("is red below 10 tok/s", () => {
+    expect(formatStatusLine(theme, { rate: 9.4, streaming: true })).toBe(
+      "[success]⚡[/] [error]9.4[/] [dim]tok/s[/]",
+    );
+    expect(formatStatusLine(theme, { rate: 4.2, streaming: true })).toBe(
+      "[success]⚡[/] [error]4.2[/] [dim]tok/s[/]",
+    );
+  });
+
+  it("buckets by the value it displays", () => {
+    // 50.4 displays "50", so it stays in the yellow band…
+    expect(formatStatusLine(theme, { rate: 50.4, streaming: true })).toBe(
+      "[success]⚡[/] [warning]50[/] [dim]tok/s[/]",
+    );
+    // …while 50.6 displays "51" and goes green.
+    expect(formatStatusLine(theme, { rate: 50.6, streaming: true })).toBe(
+      "[success]⚡[/] [success]51[/] [dim]tok/s[/]",
+    );
+    // 9.96 displays "10", so it is yellow rather than red.
+    expect(formatStatusLine(theme, { rate: 9.96, streaming: true })).toBe(
+      "[success]⚡[/] [warning]10[/] [dim]tok/s[/]",
+    );
+  });
+
+  it("keeps the marker green over a carried-over reading", () => {
+    expect(
+      formatStatusLine(theme, { rate: 62, streaming: true, measured: false }),
+    ).toBe("[success]⚡[/] [dim]62[/] [dim]tok/s[/]");
+    expect(formatStatusLine(theme, { streaming: true, measured: false })).toBe(
+      "[success]⚡[/] [dim]tok/s —[/]",
+    );
+  });
+
+  it("dims the frozen rate once the stream is over", () => {
+    // No `streaming` flag — the default is the idle state.
     expect(formatStatusLine(theme, { rate: 62.4 })).toBe(
-      "[dim]⚡[/] [success]62[/] [dim]tok/s[/]",
+      "[dim]⚡[/] [dim]62[/] [dim]tok/s[/]",
     );
-    expect(formatStatusLine(theme, { rate: 30 })).toBe(
-      "[dim]⚡[/] [warning]30[/] [dim]tok/s[/]",
+    expect(formatStatusLine(theme, { rate: 62.4, streaming: false })).toBe(
+      "[dim]⚡[/] [dim]62[/] [dim]tok/s[/]",
     );
-    expect(formatStatusLine(theme, { rate: 4.2 })).toBe(
-      "[dim]⚡[/] [dim]4.2[/] [dim]tok/s[/]",
+    expect(formatStatusLine(theme, { rate: 240 })).toBe(
+      "[dim]⚡[/] [dim]240[/] [dim]tok/s[/]",
     );
-  });
-
-  it("prefixes estimated rates with a tilde", () => {
-    expect(formatStatusLine(theme, { rate: 62, estimated: true })).toBe(
-      "[dim]⚡[/] [dim]~[/][success]62[/] [dim]tok/s[/]",
-    );
-  });
-
-  it("appends the session average when there is one", () => {
-    expect(formatStatusLine(theme, { rate: 50, average: 56.25 })).toBe(
-      "[dim]⚡[/] [success]50[/] [dim]tok/s[/][dim] · avg [/][dim]56[/]",
-    );
-  });
-
-  it("drops a non-positive average", () => {
-    expect(formatStatusLine(theme, { rate: 50, average: 0 })).toBe(
-      "[dim]⚡[/] [success]50[/] [dim]tok/s[/]",
-    );
-  });
-});
-
-describe("formatSummary", () => {
-  const sample = (
-    tokPerSec: number,
-    source: "usage" | "estimate",
-  ): RateSample => ({
-    tokens: 100,
-    elapsedMs: Math.round(100_000 / tokPerSec),
-    tokPerSec,
-    source,
-  });
-
-  it("explains an empty history", () => {
-    expect(
-      formatSummary({
-        count: 0,
-        last: undefined,
-        average: undefined,
-        peak: undefined,
-        estimated: 0,
-      }),
-    ).toBe("no completed responses yet");
-  });
-
-  it("summarizes last / avg / peak and the sample count", () => {
-    expect(
-      formatSummary({
-        count: 3,
-        last: sample(50, "usage"),
-        average: 56.2,
-        peak: 91.4,
-        estimated: 1,
-      }),
-    ).toBe(
-      "last 50 tok/s · avg 56 tok/s · peak 91 tok/s · 3 responses · 1 estimated",
-    );
-  });
-
-  it("uses the singular for a single response and hides a zero count", () => {
-    expect(
-      formatSummary({
-        count: 1,
-        last: sample(50, "usage"),
-        average: 50,
-        peak: 50,
-        estimated: 0,
-      }),
-    ).toBe("last 50 tok/s · avg 50 tok/s · peak 50 tok/s · 1 response");
   });
 });

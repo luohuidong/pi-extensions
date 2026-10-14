@@ -55,23 +55,49 @@ function withOutput(
   });
 }
 
-/** A `text_delta` stream event; `output` is the provider-reported token count. */
-export function makeTextUpdate(
+/**
+ * A delta stream event; `output` is the provider-reported token count and
+ * `type` picks which content block the text belongs to.
+ */
+function makeDeltaUpdate(
+  type: "text_delta" | "thinking_delta" | "toolcall_delta",
   message: AssistantMessage,
   output: number,
-  text = "token ",
+  text: string,
 ): MessageUpdateEvent {
   const partial = withOutput(message, output);
   return {
     type: "message_update",
     message: partial,
-    assistantMessageEvent: {
-      type: "text_delta",
-      contentIndex: 0,
-      delta: text,
-      partial,
-    },
+    assistantMessageEvent: { type, contentIndex: 0, delta: text, partial },
   };
+}
+
+/** A `text_delta` stream event. */
+export function makeTextUpdate(
+  message: AssistantMessage,
+  output: number,
+  text = "token ",
+): MessageUpdateEvent {
+  return makeDeltaUpdate("text_delta", message, output, text);
+}
+
+/** A `thinking_delta` stream event. */
+export function makeThinkingUpdate(
+  message: AssistantMessage,
+  output: number,
+  text = "thinking ",
+): MessageUpdateEvent {
+  return makeDeltaUpdate("thinking_delta", message, output, text);
+}
+
+/** A `toolcall_delta` stream event; `text` is the raw JSON chunk. */
+export function makeToolcallUpdate(
+  message: AssistantMessage,
+  output: number,
+  text: string,
+): MessageUpdateEvent {
+  return makeDeltaUpdate("toolcall_delta", message, output, text);
 }
 
 export function makeMessageStart(message: AssistantMessage): MessageStartEvent {
