@@ -20,7 +20,7 @@
 packages/pi-show-minimax-quota/
 ├── AGENTS.md                # 本文件
 ├── README.md                # 用户文档(安装、prereqs、状态消息表)
-├── LICENSE.md               # MIT,随包发布
+├── LICENSE                  # MIT,随包发布
 ├── package.json             # extension 元数据、`pi.extensions`、`peerDeps`
 ├── biome.json               # `{"extends": "//"}`,继承根 Biome 配置
 ├── tsconfig.json            # strict, ESNext, bundler 解析
@@ -162,4 +162,4 @@ TypeScript 风格由 `tsconfig.json` 强制:
 
 ## 许可
 
-MIT(见 `LICENSE.md`,Copyright 2026 Luo Huidong)。
+MIT(见 `LICENSE`,Copyright 2026 Luo Huidong)。

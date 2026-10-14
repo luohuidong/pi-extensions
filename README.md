@@ -35,7 +35,7 @@ test expectations, the activation contract for individual extensions, etc.).
 
 1. `mkdir packages/<new-pkg>` and create the usual files: `package.json` (with
    a `pi.extensions` entry), `biome.json` (only `{"extends": "//"}` unless you
-   need to deviate), `tsconfig.json`, `src/`, `tests/`, `README.md`, `LICENSE.md`.
+   need to deviate), `tsconfig.json`, `src/`, `tests/`, `README.md`, `LICENSE`.
 2. `pnpm-workspace.yaml` already globs `packages/*`, so the new package is
    picked up automatically on the next `pnpm install`.
 3. Add the package to the table above.
