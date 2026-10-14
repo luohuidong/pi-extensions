@@ -6,10 +6,11 @@ extension with its own `package.json`, `src/`, `tests/`, and docs.
 
 ## Packages
 
-| Package                                                     | Description                                                                     |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| [`pi-show-minimax-quota`](./packages/pi-show-minimax-quota) | Shows MiniMax Token Plan quota (5h / 7d windows) in the pi TUI status bar.      |
-| [`pi-show-token-rate`](./packages/pi-show-token-rate)       | Shows the live output token rate (tok/s) of the active model in the status bar. |
+| Package                                                             | Description                                                                             |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [`pi-show-minimax-quota`](./packages/pi-show-minimax-quota)         | Shows MiniMax Token Plan quota (5h / 7d windows) in the pi TUI status bar.              |
+| [`pi-show-opencode-go-quota`](./packages/pi-show-opencode-go-quota) | Shows OpenCode Go subscription quota (5h / weekly / monthly windows) in the status bar. |
+| [`pi-show-token-rate`](./packages/pi-show-token-rate)               | Shows the live output token rate (tok/s) of the active model in the status bar.         |
 
 ## Development
 

@@ -2,12 +2,12 @@
 
 面向在该仓库中协作的 AI Agent / 贡献者的项目说明。
 
-本仓库是 pnpm workspace:根目录只托管 workspace 元信息与共享工具(BIome、TypeScript、Node 类型);每个扩展都是 `packages/` 下的独立子项目,自带 `src/` / `tests/` / `AGENTS.md` / `README.md` / `LICENSE`。子项目专属契约(行为门控、格式化细节、测试约定等)请到对应包的 `AGENTS.md` 查看 —— 当前子项目为 [`packages/pi-show-minimax-quota`](./packages/pi-show-minimax-quota/AGENTS.md)与 [`packages/pi-show-token-rate`](./packages/pi-show-token-rate/AGENTS.md)。
+本仓库是 pnpm workspace:根目录只托管 workspace 元信息与共享工具(BIome、TypeScript、Node 类型);每个扩展都是 `packages/` 下的独立子项目,自带 `src/` / `tests/` / `AGENTS.md` / `README.md` / `LICENSE`。子项目专属契约(行为门控、格式化细节、测试约定等)请到对应包的 `AGENTS.md` 查看 —— 当前子项目为 [`packages/pi-show-minimax-quota`](./packages/pi-show-minimax-quota/AGENTS.md)、[`packages/pi-show-opencode-go-quota`](./packages/pi-show-opencode-go-quota/AGENTS.md)与 [`packages/pi-show-token-rate`](./packages/pi-show-token-rate/AGENTS.md)。
 
 ## 项目速览
 
 - **类型**: pnpm workspace,托管多个 pi-coding-agent 扩展
-- **当前扩展**: `pi-show-minimax-quota`(`packages/pi-show-minimax-quota/`,版本 `0.2.0`)、`pi-show-token-rate`(`packages/pi-show-token-rate/`,版本 `0.2.0`)
+- **当前扩展**: `pi-show-minimax-quota`(`packages/pi-show-minimax-quota/`,版本 `0.2.0`)、`pi-show-opencode-go-quota`(`packages/pi-show-opencode-go-quota/`,版本 `0.1.0`)、`pi-show-token-rate`(`packages/pi-show-token-rate/`,版本 `0.2.0`)
 - **许可**: MIT,Copyright 2026 Luo Huidong。每个发布的扩展包内附带一份同样的 `LICENSE`。
 
 ## 目录结构
@@ -23,6 +23,7 @@
 ├── .gitignore
 └── packages/
     ├── pi-show-minimax-quota/   # 内部结构和契约见其 AGENTS.md
+    ├── pi-show-opencode-go-quota/  # 内部结构和契约见其 AGENTS.md
     └── pi-show-token-rate/      # 内部结构和契约见其 AGENTS.md
 ```
 
@@ -79,7 +80,11 @@
    - `tsconfig.json`(继承 workspace TypeScript 约定:strict + ESNext + bundler)
    - `src/` / `tests/` / `README.md` / `LICENSE` / `AGENTS.md`
 2. workspace 根的 `pnpm-workspace.yaml` 用 `packages/*` 通配,新包会被自动识别,无需额外注册。
-3. 扩展专属的 peer / dev 依赖(例如 `@earendil-works/pi-coding-agent`)放到该包的 `package.json`,不要污染根 `package.json`。
+3. 扩展专属的 peer / dev 依赖(例如 `@earendil-works/pi-coding-agent`、`typescript`、`@types/node`)放到该包的 `package.json`,不要污染根 `package.json`。
+   - 每个包的 `devDependencies` 必须**自己声明 `typescript` 与 `@types/node`**(与根同版本区间,例如 `^7.0.2` / `^26.6.1`),不能只靠包管理器往上找根目录的 `node_modules/.bin/tsc` 或 `../node_modules/@types`。
+   - 根 `package.json` 里的同名条目是给根级工具链用的,不是包的依赖来源。包内声明后,`pnpm -F <pkg> typecheck` 会解析到包自己的 `tsc`,`tsc --traceResolution` 也能看到 `@types/node` 从包内命中。
+   - **不要用 pnpm catalog**(`catalog:` 协议):发布若走 `npm publish`,npm 不认这个协议,会把 `"catalog:"` 原样写进发布的 manifest。显式写版本区间没有这个风险。
+   - `biome` / `prettier` 不需要写进包内 —— 它们只在根脚本里调用。
 4. 同步把新包登记到根 `README.md` 的 "Packages" 表。
 5. 该包若有自己的契约约束,在它的 `AGENTS.md` 里补一份"关键约束"小节,不要混到根 `AGENTS.md`。
 
