@@ -1,5 +1,11 @@
 packages:
   - "packages/*"
+# Native release management, driven by `pnpm change` + `pnpm version -r`.
+# Every package keeps its own version (no fixed groups, no epics, no lanes),
+# and changelogs live on the registry instead of committed CHANGELOG.md files.
+versioning:
+  changelog:
+    storage: registry
 allowBuilds:
   '@google/genai': false
   esbuild: true

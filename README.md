@@ -41,6 +41,24 @@ test expectations, the activation contract for individual extensions, etc.).
    picked up automatically on the next `pnpm install`.
 3. Add the package to the table above.
 
+## Releasing
+
+Releases are managed by pnpm itself — no separate release tool is installed:
+
+```bash
+pnpm change        # record a change intent (writes .changeset/<name>.md, commit it with the change)
+pnpm change status # preview the release plan the pending intents produce
+pnpm version -r    # apply the plan: bump versions, write changelogs (--dry-run to preview)
+pnpm publish -r    # publish every version that is not on the registry yet
+```
+
+Intent files use the [changesets](https://github.com/changesets/changesets)
+format, but the Changesets CLI is not used. Release behavior is configured under
+`versioning:` in [`pnpm-workspace.yaml`](./pnpm-workspace.yaml); the docs live at
+<https://pnpm.io/versioning>. `pnpm version -r` neither commits nor tags (one run
+can bump several packages to different versions), so commit the result yourself
+before publishing.
+
 ## License
 
 MIT
