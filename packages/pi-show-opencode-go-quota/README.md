@@ -1,5 +1,10 @@
 # Show OpenCode Go Quota For Pi Coding Agent
 
+> **Deprecated.** Superseded by
+> [`pi-show-provider-quota`](https://www.npmjs.com/package/pi-show-provider-quota),
+> which covers OpenCode Go and other providers in one extension. Install it
+> with `pi install npm:pi-show-provider-quota` and remove this package.
+
 A [pi](https://github.com/earendil-works/pi) extension that shows the current
 [OpenCode Go](https://opencode.ai/docs/go/) subscription quota in the bottom
 status bar of the TUI.

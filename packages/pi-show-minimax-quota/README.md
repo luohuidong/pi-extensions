@@ -1,5 +1,12 @@
 # Show Minimax Quota For Pi Coding Agent
 
+> **Deprecated.** Superseded by
+> [`pi-show-provider-quota`](https://www.npmjs.com/package/pi-show-provider-quota),
+> which covers MiniMax and other providers in one extension. Install it with
+> `pi install npm:pi-show-provider-quota` and remove this package. Note that
+> the replacement reports **used** percentages (`100 - remaining`), not the
+> remaining values documented below.
+
 A [pi](https://github.com/earendil-works/pi) extension that shows the current
 MiniMax **Token Plan** quota in the bottom status bar of the TUI.
 
