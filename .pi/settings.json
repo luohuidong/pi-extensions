@@ -8,6 +8,15 @@
       "prompts": ["!**/*"],
       "themes": ["!**/*"]
     },
-    "../packages/pi-show-token-rate"
+    "../packages/pi-show-token-rate",
+    {
+      "source": "npm:pi-show-provider-quota",
+      "autoload": false,
+      "extensions": ["!**/*"],
+      "skills": ["!**/*"],
+      "prompts": ["!**/*"],
+      "themes": ["!**/*"]
+    },
+    "../packages/pi-show-provider-quota"
   ]
 }
