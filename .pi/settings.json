@@ -1,0 +1,13 @@
+{
+  "packages": [
+    {
+      "source": "npm:pi-show-token-rate",
+      "autoload": false,
+      "extensions": ["!**/*"],
+      "skills": ["!**/*"],
+      "prompts": ["!**/*"],
+      "themes": ["!**/*"]
+    },
+    "../packages/pi-show-token-rate"
+  ]
+}
