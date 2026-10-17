@@ -1,6 +1,6 @@
 {
   "name": "pi-show-opencode-go-quota",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shows OpenCode Go subscription quota (5h / weekly / monthly windows) in the pi TUI status bar.",
   "keywords": [
     "pi-package",

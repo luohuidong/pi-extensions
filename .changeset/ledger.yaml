@@ -1,0 +1,8 @@
+pi-show-minimax-quota@0.2.1:
+  dir: packages/pi-show-minimax-quota
+  intents:
+    - provider-quota-merge
+pi-show-opencode-go-quota@0.1.1:
+  dir: packages/pi-show-opencode-go-quota
+  intents:
+    - provider-quota-merge
