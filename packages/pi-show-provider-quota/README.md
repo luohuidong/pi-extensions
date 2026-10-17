@@ -26,10 +26,6 @@ For a one-off test run without installing:
 pi -e npm:pi-show-provider-quota
 ```
 
-> This package replaces `pi-show-minimax-quota` and
-> `pi-show-opencode-go-quota`, which are now deprecated. Remove them before
-> installing this one so the same subscription is not drawn on two rows.
-
 ## Activation
 
 The row only appears when the active model's provider is one of the supported

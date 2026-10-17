@@ -6,12 +6,10 @@ extension with its own `package.json`, `src/`, `tests/`, and docs.
 
 ## Packages
 
-| Package                                                             | Description                                                                                               |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| [`pi-show-provider-quota`](./packages/pi-show-provider-quota)       | Shows the active model provider's subscription quota in the status bar (MiniMax Token Plan, OpenCode Go). |
-| [`pi-show-minimax-quota`](./packages/pi-show-minimax-quota)         | Deprecated — superseded by `pi-show-provider-quota`.                                                      |
-| [`pi-show-opencode-go-quota`](./packages/pi-show-opencode-go-quota) | Deprecated — superseded by `pi-show-provider-quota`.                                                      |
-| [`pi-show-token-rate`](./packages/pi-show-token-rate)               | Shows the live output token rate (tok/s) of the active model in the status bar.                           |
+| Package                                                       | Description                                                                                               |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| [`pi-show-provider-quota`](./packages/pi-show-provider-quota) | Shows the active model provider's subscription quota in the status bar (MiniMax Token Plan, OpenCode Go). |
+| [`pi-show-token-rate`](./packages/pi-show-token-rate)         | Shows the live output token rate (tok/s) of the active model in the status bar.                           |
 
 ## Development
 
@@ -22,7 +20,7 @@ pnpm format                 # biome format (ts/json) — most common
 pnpm md:format              # prettier format (md) — less common
 pnpm check                  # biome check (ts/json)
 pnpm md:check               # prettier check (md)
-pnpm -F <pkg> <script>      # run a script in one package, e.g. `pnpm -F pi-show-minimax-quota test`
+pnpm -F <pkg> <script>      # run a script in one package, e.g. `pnpm -F pi-show-token-rate test`
 ```
 
 Format/lint split:

@@ -2,12 +2,12 @@
 
 面向在该仓库中协作的 AI Agent / 贡献者的项目说明。
 
-本仓库是 pnpm workspace:根目录只托管 workspace 元信息与共享工具(BIome、TypeScript、Node 类型);每个扩展都是 `packages/` 下的独立子项目,自带 `src/` / `tests/` / `AGENTS.md` / `README.md` / `LICENSE`。子项目专属契约(行为门控、格式化细节、测试约定等)请到对应包的 `AGENTS.md` 查看 —— 当前子项目为 [`packages/pi-show-provider-quota`](./packages/pi-show-provider-quota/AGENTS.md)、[`packages/pi-show-token-rate`](./packages/pi-show-token-rate/AGENTS.md),以及两个已废弃但仍保留的包 [`packages/pi-show-minimax-quota`](./packages/pi-show-minimax-quota/AGENTS.md)与 [`packages/pi-show-opencode-go-quota`](./packages/pi-show-opencode-go-quota/AGENTS.md)(已被 `pi-show-provider-quota` 取代)。
+本仓库是 pnpm workspace:根目录只托管 workspace 元信息与共享工具(BIome、TypeScript、Node 类型);每个扩展都是 `packages/` 下的独立子项目,自带 `src/` / `tests/` / `AGENTS.md` / `README.md` / `LICENSE`。子项目专属契约(行为门控、格式化细节、测试约定等)请到对应包的 `AGENTS.md` 查看 —— 当前子项目为 [`packages/pi-show-provider-quota`](./packages/pi-show-provider-quota/AGENTS.md) 与 [`packages/pi-show-token-rate`](./packages/pi-show-token-rate/AGENTS.md)。
 
 ## 项目速览
 
 - **类型**: pnpm workspace,托管多个 pi-coding-agent 扩展
-- **当前扩展**: `pi-show-provider-quota`(`packages/pi-show-provider-quota/`,版本 `0.1.0`)、`pi-show-token-rate`(`packages/pi-show-token-rate/`,版本 `0.2.0`);`pi-show-minimax-quota`(`0.2.0`)与 `pi-show-opencode-go-quota`(`0.1.0`)已废弃,保留源码与已发布版本,不再演进
+- **当前扩展**: `pi-show-provider-quota`(`packages/pi-show-provider-quota/`,版本 `0.1.0`)、`pi-show-token-rate`(`packages/pi-show-token-rate/`,版本 `0.2.0`)
 - **许可**: MIT,Copyright 2026 Luo Huidong。每个发布的扩展包内附带一份同样的 `LICENSE`。
 
 ## 目录结构
@@ -23,8 +23,6 @@
 ├── .gitignore
 └── packages/
     ├── pi-show-provider-quota/     # 合并后的配额扩展:core + provider 适配器
-    ├── pi-show-minimax-quota/       # 已废弃,保留
-    ├── pi-show-opencode-go-quota/   # 已废弃,保留
     └── pi-show-token-rate/          # 内部结构和契约见其 AGENTS.md
 ```
 
@@ -58,7 +56,7 @@
 | Markdown check       | `pnpm md:check`(`prettier --check "**/*.md"`)                                     |
 | Biome lint           | `pnpm lint`                                                                       |
 | Biome 自动修复       | `pnpm fix`(`biome check --write`)                                                 |
-| 单包操作             | `pnpm -F <pkg> <script>`,例如 `pnpm -F pi-show-minimax-quota test`                |
+| 单包操作             | `pnpm -F <pkg> <script>`,例如 `pnpm -F pi-show-token-rate test`                   |
 | 记录变更意图         | `pnpm change`(写 `.changeset/*.md`,与改动一起提交)                                |
 | 预览发布计划         | `pnpm change status`                                                              |
 | 应用发布计划         | `pnpm version -r`(`--dry-run` 可预览)                                             |
