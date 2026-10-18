@@ -23,7 +23,7 @@ packages/pi-show-provider-quota/
 ├── PLAN.md                  # 本次合并的实现计划
 ├── LICENSE                  # MIT,随包发布
 ├── package.json             # extension 元数据、`pi.extensions`、`peerDeps`
-├── biome.json               # `{"extends": "//"}` + 收窄 files.includes
+├── biome.json               # `"extends": "//"` + 本包 `files.includes`
 ├── tsconfig.json            # strict, ESNext, bundler 解析
 ├── .npmignore
 ├── src/
@@ -132,7 +132,7 @@ Biome / Prettier 只在 workspace 根执行,本包不再重复定义这些脚本
 
 ## 代码风格
 
-Biome 风格由 workspace 根 `biome.json` 统一强制,本包的 `biome.json` 在 `"extends": "//"` 基础上把 `files.includes` 收窄到 `src/**/*.ts` / `tests/**/*.ts` / `*.json`,避免 `pnpm check` 在包内跑时误把 Markdown 当 Biome 的工作对象。Markdown(`AGENTS.md` / `README.md` / `PLAN.md`)交由根目录 Prettier 处理。
+Biome 风格由 workspace 根 `biome.json` 统一强制,本包的 `biome.json` 在 `"extends": "//"` 基础上必须声明自己的 `files.includes`(`src/**/*.ts` / `tests/**/*.ts` / `*.json`):根配置的 includes 不会向下覆盖,缺了它以 `src` / `tests` 为单位跑 `biome check` 或编辑器格式化都会空转。Markdown(`AGENTS.md` / `README.md` / `PLAN.md`)交由根目录 Prettier 处理。
 
 TypeScript 风格由 `tsconfig.json` 强制:`strict`、`module: ESNext`、`moduleResolution: bundler`、`isolatedModules`、`allowImportingTsExtensions` + `noEmit`。
 

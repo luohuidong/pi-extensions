@@ -28,10 +28,11 @@
 
 ### Biome workspace 约定
 
-- 根 `biome.json` 负责所有 `formatter` / `linter` / `javascript` / `assist` / `vcs` / `files.includes` 基础设定。
-- 每个包自带一个 `biome.json`,**至少**声明 `"extends": "//"`;包级文件默认不要再写 `files.includes`,根配置已经覆盖 `**/*.ts` / `**/*.json`。仅当需要偏离全局规则(例如禁用某条 lint、关掉 formatter、或在包级 `files.includes` 里**收窄**到 `src/**` 与 `tests/**` 以避免误伤)时,才在对应包内追加字段,不要修改根配置。
+- 根 `biome.json` 负责所有 `formatter` / `linter` / `javascript` / `assist` / `vcs` 共享规则;根级 `files.includes` 只声明根目录自身的文件(`biome.json` / `package.json` / `pnpm-workspace.yaml`),**不会**向下覆盖各包。
+- 每个包**必须**自带 `biome.json`,声明 `"extends": "//"` **并且显式写出自己的 `files.includes`**(至少 `["src/**/*.ts", "tests/**/*.ts", "*.json"]`)。`extends` 只继承规则,不继承“处理哪些文件”:包内一旦缺少 `files.includes`,Biome 会沿用从根继承来的范围,结果只处理 `biome.json` / `package.json`,`src` / `tests` 下的 `*.ts` 既不会被 format / lint,VSCode 里的 Save on format 也不会生效。用 `biome check --verbose` 可以核对实际处理的文件列表。
+- 需要偏离全局规则(禁用某条 lint、关掉 formatter 等)时,在对应包内追加字段,不要修改根配置。
   - **严禁**在包级 `biome.json` 的 `files.includes` 里加入 `**/*.md` —— Markdown 由根目录 Prettier 负责,混入 Biome 会导致 `pnpm check` 在包内跑时格式化结果与 Prettier 冲突。
-- Biome 自下而上寻找最近配置:在包内跑 `biome check` 会自动用 `packages/<pkg>/biome.json`(继承根),在根目录跑则覆盖整个 workspace。
+- Biome 自下而上寻找最近配置:在包内跑 `biome check` 会自动用 `packages/<pkg>/biome.json`(继承根规则 + 该包自己的 `files.includes`),在根目录跑则由各层配置分别认领文件,合起来覆盖整个 workspace。
 
 ### Markdown 由 Prettier 处理
 
@@ -83,7 +84,7 @@ pnpm publish -r                      # 发布 registry 上尚不存在的版本
 - **`pnpm version -r` 不建 git commit、不建 tag**(一次递归可能把多个包 bump 到不同版本,没有单一版本可 tag)。发布前自己 `git commit` 并打 tag。
 - 各包**独立版本**,没有 `versioning.fixed` 分组;根包 `private: true`,不参与发布。
 - changelog 走 `versioning.changelog.storage: registry`:不在仓库提交 `CHANGELOG.md`,发布时合成并打进 tarball。若要改成仓库内 `CHANGELOG.md`,需同时把 `CHANGELOG.md` 加进各包的 `files` 白名单。
-- 这些命令要求 **pnpm >= 11.13**(`pnpm change check` 需 >= 12.4);根 `package.json` 的 `packageManager` 字段已钉住版本。
+- 这些命令要求 **pnpm >= 11.13**(`pnpm change check` 需 >= 12.4)。仓库**没有**用 `packageManager` / `devEngines` 字段钉住 pnpm 版本:本地用自己安装的 pnpm,CI 在 workflow 的 setup 步骤里显式指定版本。
 
 ## 代码风格
 
@@ -100,13 +101,13 @@ pnpm publish -r                      # 发布 registry 上尚不存在的版本
 
 1. `mkdir packages/<new-pkg>` 并在该目录下创建:
    - `package.json`(声明 `name` / `version` / `pi.extensions` 入口 / `peerDependencies` / `devDependencies`)
-   - `biome.json`(只写 `{"extends": "//"}`,除非该包需要偏离全局规则)
+   - `biome.json`(必须同时写 `"extends": "//"` 和该包的 `files.includes`,见上文“Biome workspace 约定”;只有需要偏离全局规则时才追加其他字段)
    - `tsconfig.json`(继承 workspace TypeScript 约定:strict + ESNext + bundler)
    - `src/` / `tests/` / `README.md` / `LICENSE` / `AGENTS.md`
 2. workspace 根的 `pnpm-workspace.yaml` 用 `packages/*` 通配,新包会被自动识别,无需额外注册。
 3. 扩展专属的 peer / dev 依赖(例如 `@earendil-works/pi-coding-agent`、`typescript`、`@types/node`)放到该包的 `package.json`,不要污染根 `package.json`。
-   - 每个包的 `devDependencies` 必须**自己声明 `typescript` 与 `@types/node`**(与根同版本区间,例如 `^7.0.2` / `^26.6.1`),不能只靠包管理器往上找根目录的 `node_modules/.bin/tsc` 或 `../node_modules/@types`。
-   - 根 `package.json` 里的同名条目是给根级工具链用的,不是包的依赖来源。包内声明后,`pnpm -F <pkg> typecheck` 会解析到包自己的 `tsc`,`tsc --traceResolution` 也能看到 `@types/node` 从包内命中。
+   - 每个包的 `devDependencies` 必须**自己声明 `typescript` 与 `@types/node`**(如 `^7.0.2` / `^26.6.1`),不能只靠包管理器往上找根目录的 `node_modules/.bin/tsc` 或 `../node_modules/@types`。
+   - 根 `package.json` **不声明 `typescript`**(版本只在各包内维护,升级时逐个包改);根里的 `@types/node` 仅供根级工具链使用,不是包的依赖来源。包内声明后,`pnpm -F <pkg> typecheck` 会解析到包自己的 `tsc`,`tsc --traceResolution` 也能看到 `@types/node` 从包内命中。
    - **不要用 pnpm catalog**(`catalog:` 协议):发布若走 `npm publish`,npm 不认这个协议,会把 `"catalog:"` 原样写进发布的 manifest。显式写版本区间没有这个风险。
    - `biome` / `prettier` 不需要写进包内 —— 它们只在根脚本里调用。
 4. 同步把新包登记到根 `README.md` 的 "Packages" 表。

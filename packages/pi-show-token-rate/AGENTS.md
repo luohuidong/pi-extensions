@@ -29,7 +29,7 @@ packages/pi-show-token-rate/
 ├── AGENTS.md                # 本文件
 ├── README.md                # 用户文档(安装、色带、度量规则、命令)
 ├── package.json             # extension 元数据、`pi.extensions`、`peerDeps`
-├── biome.json               # `{"extends": "//"}`
+├── biome.json               # `"extends": "//"` + 本包 `files.includes`
 ├── tsconfig.json            # strict, ESNext, bundler 解析
 ├── src/
 │   ├── index.ts      扩展入口:事件 → 控制器接线,以及 `/token-rate` 命令
@@ -118,7 +118,7 @@ Biome / Prettier 只在 workspace 根执行;Biome 自下而上会自动拾取本
 
 ## 代码风格
 
-Biome(indent / lineWidth / quote / semicolon / trailing comma / organizeImports)由 workspace 根 `biome.json` 统一强制;本包 `biome.json` 把 `files.includes` 收窄到 `src/**/*.ts` / `tests/**/*.ts` / `*.json`。Markdown(本包 `SPEC.md` / `AGENTS.md` / `README.md`)由 workspace 根 Prettier 处理。
+Biome(indent / lineWidth / quote / semicolon / trailing comma / organizeImports)由 workspace 根 `biome.json` 统一强制;本包 `biome.json` 必须声明自己的 `files.includes`(`src/**/*.ts` / `tests/**/*.ts` / `*.json`):`extends` 只继承规则不继承文件范围,根配置的 includes 不会向下覆盖,缺了它包内 `src` / `tests` 在 `biome check` 和编辑器里都不会被处理。Markdown(本包 `SPEC.md` / `AGENTS.md` / `README.md`)由 workspace 根 Prettier 处理。
 
 TypeScript 由 `tsconfig.json` 强制:`strict`、`module: ESNext`、`moduleResolution: bundler`、`isolatedModules`、`allowImportingTsExtensions` + `noEmit`。
 
