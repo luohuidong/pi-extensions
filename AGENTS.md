@@ -21,6 +21,9 @@
 ├── pnpm-workspace.yaml       # workspace 声明,`packages/*`
 ├── biome.json                # workspace 根 Biome 配置(共享 formatter / linter 规则)
 ├── .gitignore
+├── references/
+│   ├── adding-a-package.md   # 新增 extension 包清单(按需查阅)
+│   └── release.md            # 版本变更与包发布流程(按需查阅)
 └── packages/
     ├── pi-show-provider-quota/     # 合并后的配额扩展:core + provider 适配器
     └── pi-show-token-rate/          # 内部结构和契约见其 AGENTS.md
@@ -59,32 +62,10 @@
 | Biome 自动修复       | `pnpm fix`(`biome check --write`)                                                 |
 | 单包操作             | `pnpm -F <pkg> <script>`,例如 `pnpm -F pi-show-token-rate test`                   |
 | 记录变更意图         | `pnpm change`(写 `.changeset/*.md`,与改动一起提交)                                |
-| 预览发布计划         | `pnpm change status`                                                              |
-| 应用发布计划         | `pnpm version -r`(`--dry-run` 可预览)                                             |
-| 发布到 npm           | `pnpm publish -r`                                                                 |
-
-发布前会自动跑各包自己的 `prepublishOnly`(typecheck + test);Biome / Prettier 的校验只在 workspace 根通过 `pnpm verify` 执行。
 
 ## 版本与发布
 
-发布由 pnpm 原生能力驱动,**不安装 `@changesets/cli`**。完整流程:
-
-```bash
-pnpm change                          # 记录变更意图(交互式:选包 / 选 bump / 写 summary)
-pnpm change status                   # 预览待处理意图会产生的发布计划
-pnpm version -r                      # 消费意图:bump 版本 + 写 changelog + 记录 ledger
-pnpm publish -r                      # 发布 registry 上尚不存在的版本
-```
-
-关键约束:
-
-- **意图文件仍是 changesets 格式**,落在 `.changeset/*.md`(该目录由 `pnpm change` 按需创建,不需要预置文件),随改动一起提交。
-- **配置只认 `pnpm-workspace.yaml` 的 `versioning:` 键**;`.changeset/config.json` 已删除且不会被读取,不要再新建(两份真相)。
-- **不要装 `@changesets/cli`**;也不要调用 `changeset` / `pnpm changeset` 等 CLI 命令。
-- **`pnpm version -r` 不建 git commit、不建 tag**(一次递归可能把多个包 bump 到不同版本,没有单一版本可 tag)。发布前自己 `git commit` 并打 tag。
-- 各包**独立版本**,没有 `versioning.fixed` 分组;根包 `private: true`,不参与发布。
-- changelog 走 `versioning.changelog.storage: registry`:不在仓库提交 `CHANGELOG.md`,发布时合成并打进 tarball。若要改成仓库内 `CHANGELOG.md`,需同时把 `CHANGELOG.md` 加进各包的 `files` 白名单。
-- 这些命令要求 **pnpm >= 11.13**(`pnpm change check` 需 >= 12.4)。仓库**没有**用 `packageManager` / `devEngines` 字段钉住 pnpm 版本:本地用自己安装的 pnpm,CI 在 workflow 的 setup 步骤里显式指定版本。
+扩展包发生功能变化或修复 Bug 时,用 `pnpm change` 写一条 changeset(`.changeset/*.md`),与改动一起提交。完整的版本与发布流程(预览计划、bump 版本、发布到 npm 及关键约束)见 [`references/release.md`](./references/release.md)。
 
 ## 代码风格
 
@@ -99,19 +80,7 @@ pnpm publish -r                      # 发布 registry 上尚不存在的版本
 
 ### 增加新 extension 包
 
-1. `mkdir packages/<new-pkg>` 并在该目录下创建:
-   - `package.json`(声明 `name` / `version` / `pi.extensions` 入口 / `peerDependencies` / `devDependencies`)
-   - `biome.json`(必须同时写 `"extends": "//"` 和该包的 `files.includes`,见上文“Biome workspace 约定”;只有需要偏离全局规则时才追加其他字段)
-   - `tsconfig.json`(继承 workspace TypeScript 约定:strict + ESNext + bundler)
-   - `src/` / `tests/` / `README.md` / `LICENSE` / `AGENTS.md`
-2. workspace 根的 `pnpm-workspace.yaml` 用 `packages/*` 通配,新包会被自动识别,无需额外注册。
-3. 扩展专属的 peer / dev 依赖(例如 `@earendil-works/pi-coding-agent`、`typescript`、`@types/node`)放到该包的 `package.json`,不要污染根 `package.json`。
-   - 每个包的 `devDependencies` 必须**自己声明 `typescript` 与 `@types/node`**(如 `^7.0.2` / `^26.6.1`),不能只靠包管理器往上找根目录的 `node_modules/.bin/tsc` 或 `../node_modules/@types`。
-   - 根 `package.json` **不声明 `typescript`**(版本只在各包内维护,升级时逐个包改);根里的 `@types/node` 仅供根级工具链使用,不是包的依赖来源。包内声明后,`pnpm -F <pkg> typecheck` 会解析到包自己的 `tsc`,`tsc --traceResolution` 也能看到 `@types/node` 从包内命中。
-   - **不要用 pnpm catalog**(`catalog:` 协议):发布若走 `npm publish`,npm 不认这个协议,会把 `"catalog:"` 原样写进发布的 manifest。显式写版本区间没有这个风险。
-   - `biome` / `prettier` 不需要写进包内 —— 它们只在根脚本里调用。
-4. 同步把新包登记到根 `README.md` 的 "Packages" 表。
-5. 该包若有自己的契约约束,在它的 `AGENTS.md` 里补一份"关键约束"小节,不要混到根 `AGENTS.md`。
+新建扩展包的完整清单(目录结构、依赖声明约定、登记要求等)见 [`references/adding-a-package.md`](./references/adding-a-package.md)。
 
 ### 修改 Biome 全局规则
 
