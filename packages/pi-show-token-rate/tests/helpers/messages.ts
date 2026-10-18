@@ -73,6 +73,20 @@ function makeDeltaUpdate(
   };
 }
 
+/** A content-block open event, which carries no text. */
+function makeStartUpdate(
+  type: "text_start" | "thinking_start" | "toolcall_start",
+  message: AssistantMessage,
+  output: number,
+): MessageUpdateEvent {
+  const partial = withOutput(message, output);
+  return {
+    type: "message_update",
+    message: partial,
+    assistantMessageEvent: { type, contentIndex: 0, partial },
+  };
+}
+
 /** A `text_delta` stream event. */
 export function makeTextUpdate(
   message: AssistantMessage,
@@ -98,6 +112,30 @@ export function makeToolcallUpdate(
   text: string,
 ): MessageUpdateEvent {
   return makeDeltaUpdate("toolcall_delta", message, output, text);
+}
+
+/** A `text_start` content-block open. */
+export function makeTextStart(
+  message: AssistantMessage,
+  output: number,
+): MessageUpdateEvent {
+  return makeStartUpdate("text_start", message, output);
+}
+
+/** A `thinking_start` content-block open. */
+export function makeThinkingStart(
+  message: AssistantMessage,
+  output: number,
+): MessageUpdateEvent {
+  return makeStartUpdate("thinking_start", message, output);
+}
+
+/** A `toolcall_start` content-block open. */
+export function makeToolcallStart(
+  message: AssistantMessage,
+  output: number,
+): MessageUpdateEvent {
+  return makeStartUpdate("toolcall_start", message, output);
 }
 
 export function makeMessageStart(message: AssistantMessage): MessageStartEvent {

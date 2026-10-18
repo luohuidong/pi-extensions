@@ -6,7 +6,7 @@
  * themes and modes).
  */
 
-import type { formatStatusLine } from "../../src/format.ts";
+import type { Theme } from "../../src/format.ts";
 
 export function makeTheme(): {
   fg: (color: string, text: string) => string;
@@ -18,6 +18,4 @@ export function makeTheme(): {
   };
 }
 
-export const theme = makeTheme() as unknown as Parameters<
-  typeof formatStatusLine
->[0];
+export const theme = makeTheme() as unknown as Theme;

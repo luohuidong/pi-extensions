@@ -6,10 +6,10 @@ extension with its own `package.json`, `src/`, `tests/`, and docs.
 
 ## Packages
 
-| Package                                                       | Description                                                                                               |
-| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| [`pi-show-provider-quota`](./packages/pi-show-provider-quota) | Shows the active model provider's subscription quota in the status bar (MiniMax Token Plan, OpenCode Go). |
-| [`pi-show-token-rate`](./packages/pi-show-token-rate)         | Shows the live output token rate (tok/s) of the active model in the status bar.                           |
+| Package                                                       | Description                                                                                                    |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [`pi-show-provider-quota`](./packages/pi-show-provider-quota) | Shows the active model provider's subscription quota in the status bar (MiniMax Token Plan, OpenCode Go).      |
+| [`pi-show-token-rate`](./packages/pi-show-token-rate)         | Shows the live output token rate (tok/s) and time to first token (TTFT) of the active model in the status bar. |
 
 ## Development
 

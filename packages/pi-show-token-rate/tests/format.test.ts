@@ -1,9 +1,19 @@
 /**
- * Status-line formatting, including the spec's colour buckets.
+ * Segment formatting, including the spec's colour buckets and the composed
+ * row. Pure functions: no clock, no controller.
  */
 
 import { describe, it } from "node:test";
-import { formatRate, formatStatusLine } from "../src/format.ts";
+
+import {
+  formatRate,
+  formatTps,
+  formatTtft,
+  RATE_UNIT,
+  TTFT_UNIT_MS,
+  TTFT_UNIT_S,
+  ttftDisplay,
+} from "../src/format.ts";
 import { expect } from "./helpers/expect.ts";
 import { theme } from "./helpers/theme.ts";
 
@@ -27,101 +37,140 @@ describe("formatRate", () => {
   });
 });
 
-describe("formatStatusLine", () => {
+describe("ttftDisplay", () => {
+  it("uses whole milliseconds below one second", () => {
+    expect(ttftDisplay(840)).toEqual({
+      value: "840",
+      unit: TTFT_UNIT_MS,
+      seconds: 0.84,
+    });
+    expect(ttftDisplay(0.4)).toEqual({
+      value: "0",
+      unit: TTFT_UNIT_MS,
+      seconds: 0,
+    });
+  });
+
+  it("uses one decimal of seconds from one second up", () => {
+    expect(ttftDisplay(1_000)).toEqual({
+      value: "1.0",
+      unit: TTFT_UNIT_S,
+      seconds: 1,
+    });
+    expect(ttftDisplay(1_240)).toEqual({
+      value: "1.2",
+      unit: TTFT_UNIT_S,
+      seconds: 1.2,
+    });
+  });
+
+  it("returns null for values that are not latencies", () => {
+    expect(ttftDisplay(0)).toBeNull();
+    expect(ttftDisplay(-1)).toBeNull();
+    expect(ttftDisplay(Number.NaN)).toBeNull();
+  });
+});
+
+describe("formatTps", () => {
   it("shows a placeholder before anything was measured", () => {
-    expect(formatStatusLine(theme, {})).toBe("[dim]⚡[/] [dim]tok/s —[/]");
+    expect(formatTps(theme, {})).toBe(`[dim]TPS[/] [dim]— ${RATE_UNIT}[/]`);
   });
 
   it("treats a missing or invalid rate as no measurement", () => {
-    expect(formatStatusLine(theme, { rate: Number.NaN })).toBe(
-      "[dim]⚡[/] [dim]tok/s —[/]",
+    expect(formatTps(theme, { rate: Number.NaN })).toBe(
+      `[dim]TPS[/] [dim]— ${RATE_UNIT}[/]`,
     );
-    expect(formatStatusLine(theme, { rate: 0 })).toBe(
-      "[dim]⚡[/] [dim]tok/s —[/]",
+    expect(formatTps(theme, { rate: 0 })).toBe(
+      `[dim]TPS[/] [dim]— ${RATE_UNIT}[/]`,
     );
   });
 
-  it("paints the marker green while streaming and dim once it stops", () => {
-    expect(formatStatusLine(theme, { rate: 62, streaming: true })).toBe(
-      "[success]⚡[/] [success]62[/] [dim]tok/s[/]",
+  it("keeps the label dim and colours only the number", () => {
+    expect(formatTps(theme, { rate: 62, streaming: true })).toBe(
+      "[dim]TPS[/] [success]62[/] [dim]tok/s[/]",
     );
-    // The marker is green even when the rate itself is yellow or red.
-    expect(formatStatusLine(theme, { rate: 30, streaming: true })).toBe(
-      "[success]⚡[/] [warning]30[/] [dim]tok/s[/]",
+    expect(formatTps(theme, { rate: 30, streaming: true })).toBe(
+      "[dim]TPS[/] [warning]30[/] [dim]tok/s[/]",
     );
-    expect(formatStatusLine(theme, { rate: 2.5, streaming: true })).toBe(
-      "[success]⚡[/] [error]2.5[/] [dim]tok/s[/]",
+    expect(formatTps(theme, { rate: 2.5, streaming: true })).toBe(
+      "[dim]TPS[/] [error]2.5[/] [dim]tok/s[/]",
     );
-    // Idle, whatever the colour the rate would have had: the marker is dim.
-    expect(formatStatusLine(theme, { rate: 62 })).toBe(
-      "[dim]⚡[/] [dim]62[/] [dim]tok/s[/]",
+    // Idle: whatever the colour the rate would have had, the number is dim.
+    expect(formatTps(theme, { rate: 62 })).toBe(
+      "[dim]TPS[/] [dim]62[/] [dim]tok/s[/]",
     );
+    // A carried-over reading is not a measurement of the live response.
+    expect(
+      formatTps(theme, { rate: 62, streaming: true, measured: false }),
+    ).toBe("[dim]TPS[/] [dim]62[/] [dim]tok/s[/]");
   });
 
   it("is green above 50 tok/s", () => {
-    expect(formatStatusLine(theme, { rate: 51, streaming: true })).toBe(
-      "[success]⚡[/] [success]51[/] [dim]tok/s[/]",
-    );
-    expect(formatStatusLine(theme, { rate: 240, streaming: true })).toBe(
-      "[success]⚡[/] [success]240[/] [dim]tok/s[/]",
+    expect(formatTps(theme, { rate: 50.6, streaming: true })).toBe(
+      "[dim]TPS[/] [success]51[/] [dim]tok/s[/]",
     );
   });
 
   it("is yellow from 10 through 50 tok/s", () => {
-    expect(formatStatusLine(theme, { rate: 10, streaming: true })).toBe(
-      "[success]⚡[/] [warning]10[/] [dim]tok/s[/]",
+    expect(formatTps(theme, { rate: 50.4, streaming: true })).toBe(
+      "[dim]TPS[/] [warning]50[/] [dim]tok/s[/]",
     );
-    expect(formatStatusLine(theme, { rate: 50, streaming: true })).toBe(
-      "[success]⚡[/] [warning]50[/] [dim]tok/s[/]",
-    );
-    expect(formatStatusLine(theme, { rate: 30.4, streaming: true })).toBe(
-      "[success]⚡[/] [warning]30[/] [dim]tok/s[/]",
+    expect(formatTps(theme, { rate: 10, streaming: true })).toBe(
+      "[dim]TPS[/] [warning]10[/] [dim]tok/s[/]",
     );
   });
 
   it("is red below 10 tok/s", () => {
-    expect(formatStatusLine(theme, { rate: 9.4, streaming: true })).toBe(
-      "[success]⚡[/] [error]9.4[/] [dim]tok/s[/]",
+    expect(formatTps(theme, { rate: 9.9, streaming: true })).toBe(
+      "[dim]TPS[/] [error]9.9[/] [dim]tok/s[/]",
     );
-    expect(formatStatusLine(theme, { rate: 4.2, streaming: true })).toBe(
-      "[success]⚡[/] [error]4.2[/] [dim]tok/s[/]",
+  });
+});
+
+describe("formatTtft", () => {
+  it("shows a placeholder before anything was measured", () => {
+    expect(formatTtft(theme, {})).toBe(
+      `[dim]TTFT[/] [dim]— ${TTFT_UNIT_MS}[/]`,
     );
   });
 
-  it("buckets by the value it displays", () => {
-    // 50.4 displays "50", so it stays in the yellow band…
-    expect(formatStatusLine(theme, { rate: 50.4, streaming: true })).toBe(
-      "[success]⚡[/] [warning]50[/] [dim]tok/s[/]",
+  it("keeps the label dim and colours only the number", () => {
+    expect(formatTtft(theme, { ms: 840, streaming: true })).toBe(
+      "[dim]TTFT[/] [success]840[/][dim]ms[/]",
     );
-    // …while 50.6 displays "51" and goes green.
-    expect(formatStatusLine(theme, { rate: 50.6, streaming: true })).toBe(
-      "[success]⚡[/] [success]51[/] [dim]tok/s[/]",
+    expect(formatTtft(theme, { ms: 1_240, streaming: true })).toBe(
+      "[dim]TTFT[/] [warning]1.2[/][dim]s[/]",
     );
-    // 9.96 displays "10", so it is yellow rather than red.
-    expect(formatStatusLine(theme, { rate: 9.96, streaming: true })).toBe(
-      "[success]⚡[/] [warning]10[/] [dim]tok/s[/]",
+    expect(formatTtft(theme, { ms: 4_000, streaming: true })).toBe(
+      "[dim]TTFT[/] [error]4.0[/][dim]s[/]",
     );
-  });
-
-  it("keeps the marker green over a carried-over reading", () => {
+    // Idle and carried-over readings are dim.
+    expect(formatTtft(theme, { ms: 1_240 })).toBe(
+      "[dim]TTFT[/] [dim]1.2[/][dim]s[/]",
+    );
     expect(
-      formatStatusLine(theme, { rate: 62, streaming: true, measured: false }),
-    ).toBe("[success]⚡[/] [dim]62[/] [dim]tok/s[/]");
-    expect(formatStatusLine(theme, { streaming: true, measured: false })).toBe(
-      "[success]⚡[/] [dim]tok/s —[/]",
-    );
+      formatTtft(theme, { ms: 1_240, streaming: true, measured: false }),
+    ).toBe("[dim]TTFT[/] [dim]1.2[/][dim]s[/]");
   });
 
-  it("dims the frozen rate once the stream is over", () => {
-    // No `streaming` flag — the default is the idle state.
-    expect(formatStatusLine(theme, { rate: 62.4 })).toBe(
-      "[dim]⚡[/] [dim]62[/] [dim]tok/s[/]",
+  it("buckets by the displayed value", () => {
+    // 999ms prints green, 1000ms prints yellow: the unit switch is the edge.
+    expect(formatTtft(theme, { ms: 999, streaming: true })).toBe(
+      "[dim]TTFT[/] [success]999[/][dim]ms[/]",
     );
-    expect(formatStatusLine(theme, { rate: 62.4, streaming: false })).toBe(
-      "[dim]⚡[/] [dim]62[/] [dim]tok/s[/]",
+    expect(formatTtft(theme, { ms: 1_000, streaming: true })).toBe(
+      "[dim]TTFT[/] [warning]1.0[/][dim]s[/]",
     );
-    expect(formatStatusLine(theme, { rate: 240 })).toBe(
-      "[dim]⚡[/] [dim]240[/] [dim]tok/s[/]",
+    // 3.04s rounds to 3.0 and stays yellow; 3.06s rounds to 3.1 and goes red.
+    expect(formatTtft(theme, { ms: 3_040, streaming: true })).toBe(
+      "[dim]TTFT[/] [warning]3.0[/][dim]s[/]",
+    );
+    expect(formatTtft(theme, { ms: 3_060, streaming: true })).toBe(
+      "[dim]TTFT[/] [error]3.1[/][dim]s[/]",
+    );
+    // 999.6 rounds to 1000ms and so prints as 1.0s (yellow), never "1000ms".
+    expect(formatTtft(theme, { ms: 999.6, streaming: true })).toBe(
+      "[dim]TTFT[/] [warning]1.0[/][dim]s[/]",
     );
   });
 });

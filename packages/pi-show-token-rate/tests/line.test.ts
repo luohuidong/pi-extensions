@@ -1,14 +1,17 @@
 /**
- * Status-line controller: streaming, throttling, freezing, and the toggle.
+ * Status-line controller: the composed row, throttling, and the toggle.
  *
- * The clock is injected so every expectation below is exact instead of
- * timing-dependent.
+ * Metrics are exercised in isolation in `tests/metrics/`; this file checks the
+ * wiring between them and the footer. The clock is injected so every
+ * expectation is exact instead of timing-dependent.
  */
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { TokenRateLine } from "../src/line.ts";
+
+import { MetricsLine } from "../src/line.ts";
 import { expect } from "./helpers/expect.ts";
 import {
   type AssistantMessage,
@@ -16,8 +19,6 @@ import {
   makeMessageEnd,
   makeMessageStart,
   makeTextUpdate,
-  makeThinkingUpdate,
-  makeToolcallUpdate,
 } from "./helpers/messages.ts";
 import { theme } from "./helpers/theme.ts";
 
@@ -44,9 +45,13 @@ function lastText(writes: Write[]): string | undefined {
   return writes[writes.length - 1]?.text;
 }
 
-/** Feed a response of `steps` deltas, `perStep` tokens each, every 100ms. */
+/**
+ * Feed a response of `steps` deltas, `perStep` tokens each, every 100ms. The
+ * message's request stamp is the streaming start, so TTFT is the first delta's
+ * 100ms gap.
+ */
 function stream(
-  line: TokenRateLine,
+  line: MetricsLine,
   ctx: ExtensionContext,
   clock: { now: number },
   message: AssistantMessage,
@@ -55,262 +60,106 @@ function stream(
   perStep: number,
 ): void {
   clock.now = startAt;
-  line.onMessageStart(ctx, makeMessageStart(message).message);
+  line.onMessageStart(ctx, { ...message, timestamp: startAt });
   for (let i = 1; i <= steps; i += 1) {
     clock.now = startAt + i * 100;
     line.onUpdate(ctx, makeTextUpdate(message, i * perStep));
   }
 }
 
-const GREEN = "[success]⚡[/] [success]200[/] [dim]tok/s[/]";
-const YELLOW = "[success]⚡[/] [warning]50[/] [dim]tok/s[/]";
-const DIM_YELLOW = "[dim]⚡[/] [dim]50[/] [dim]tok/s[/]";
-const ESTIMATE_LIVE = "[success]⚡[/] [success]100[/] [dim]tok/s[/]";
-const ESTIMATE_FROZEN = "[dim]⚡[/] [dim]100[/] [dim]tok/s[/]";
+const LIVE_ROW =
+  "[dim]TPS[/] [success]200[/] [dim]tok/s[/] [dim]·[/] [dim]TTFT[/] [success]100[/][dim]ms[/]";
+const FROZEN_ROW =
+  "[dim]TPS[/] [dim]200[/] [dim]tok/s[/] [dim]·[/] [dim]TTFT[/] [dim]100[/][dim]ms[/]";
+const EMPTY_ROW =
+  "[dim]TPS[/] [dim]— tok/s[/] [dim]·[/] [dim]TTFT[/] [dim]— ms[/]";
 
-describe("TokenRateLine", () => {
+describe("MetricsLine", () => {
   it("clears any leftover row on session start", () => {
     const { ctx, writes } = makeCtx();
-    new TokenRateLine().start(ctx);
+    new MetricsLine().start(ctx);
     expect(writes).toEqual([{ key: "token-rate", text: undefined }]);
   });
 
-  it("renders a live rate while the model streams", () => {
+  it("paints TPS then TTFT on one row while the model streams", () => {
     const { ctx, writes } = makeCtx();
     const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
+    const line = new MetricsLine(() => clock.now);
     line.start(ctx);
 
-    // 20 tokens every 100ms; the trailing window sees 200 tok/s.
+    // 20 tokens every 100ms; the trailing window sees 200 tok/s, and the first
+    // delta arrives 100ms after the request stamp.
     stream(line, ctx, clock, makeAssistantMessage(), 1_000, 5, 20);
 
-    expect(lastText(writes)).toBe(GREEN);
+    expect(lastText(writes)).toBe(LIVE_ROW);
   });
 
-  it("colours a mid rate yellow", () => {
+  it("paints the first token's TTFT on the first update", () => {
     const { ctx, writes } = makeCtx();
     const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
-    line.start(ctx);
-
-    // 5 tokens every 100ms is 50 tok/s, the top of the yellow band.
-    stream(line, ctx, clock, makeAssistantMessage(), 1_000, 5, 5);
-
-    expect(lastText(writes)).toBe(YELLOW);
-  });
-
-  it("colours a slow rate red", () => {
-    const { ctx, writes } = makeCtx();
-    const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
+    const line = new MetricsLine(() => clock.now);
     const message = makeAssistantMessage();
 
-    // One token every 400ms is 2.5 tok/s, below the 10 tok/s red boundary.
     clock.now = 1_000;
-    line.onMessageStart(ctx, makeMessageStart(message).message);
-    for (let i = 1; i <= 5; i += 1) {
-      clock.now = 1_000 + i * 400;
-      line.onUpdate(ctx, makeTextUpdate(message, i, "x"));
-    }
+    line.onMessageStart(ctx, { ...message, timestamp: 1_000 });
+    clock.now = 1_250;
+    line.onUpdate(ctx, makeTextUpdate(message, 6));
 
-    expect(lastText(writes)).toBe("[success]⚡[/] [error]2.5[/] [dim]tok/s[/]");
-  });
-
-  it("keeps the last streaming rate, dimmed, when the response ends", () => {
-    const { ctx, writes } = makeCtx();
-    const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
-    const message = makeAssistantMessage();
-
-    stream(line, ctx, clock, message, 1_000, 5, 5);
-    expect(lastText(writes)).toBe(YELLOW);
-
-    line.onMessageEnd(ctx, makeMessageEnd(message, 50).message);
-    // The trailing-window reading is frozen as-is; there is no settled average.
-    expect(lastText(writes)).toBe(DIM_YELLOW);
-  });
-
-  it("falls back to the character estimate when no usage is reported", () => {
-    const { ctx, writes } = makeCtx();
-    const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
-    const message = makeAssistantMessage();
-
-    // No provider usage: 80 chars per 200ms is 20 tokens at the prose ratio,
-    // i.e. 100 tok/s.
-    clock.now = 1_000;
-    line.onMessageStart(ctx, makeMessageStart(message).message);
-    for (let i = 1; i <= 8; i += 1) {
-      clock.now = 1_000 + i * 200;
-      line.onUpdate(ctx, makeTextUpdate(message, 0, "x".repeat(80)));
-    }
-    expect(lastText(writes)).toBe(ESTIMATE_LIVE);
-
-    clock.now = 2_800;
-    line.onMessageEnd(ctx, makeMessageEnd(message, 0).message);
-    // The last estimated reading is frozen as-is, dimmed.
-    expect(lastText(writes)).toBe(ESTIMATE_FROZEN);
-  });
-
-  it("weights wide characters as roughly one token each", () => {
-    const { ctx, writes } = makeCtx();
-    const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
-    const message = makeAssistantMessage();
-
-    // Chinese thinking at 3 characters per 100ms is ~30 tok/s; dividing
-    // everything by four used to read it as 7.5.
-    clock.now = 1_000;
-    line.onMessageStart(ctx, makeMessageStart(message).message);
-    for (let i = 1; i <= 15; i += 1) {
-      clock.now = 1_000 + i * 100;
-      line.onUpdate(ctx, makeThinkingUpdate(message, 0, "先分析"));
-    }
     expect(lastText(writes)).toBe(
-      "[success]⚡[/] [warning]30[/] [dim]tok/s[/]",
+      "[dim]TPS[/] [dim]— tok/s[/] [dim]·[/] [dim]TTFT[/] [success]250[/][dim]ms[/]",
     );
   });
 
-  it("absorbs a tool call that arrives in one delta", () => {
+  it("dims both readings once the response ends", () => {
     const { ctx, writes } = makeCtx();
     const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
+    const line = new MetricsLine(() => clock.now);
     const message = makeAssistantMessage();
 
-    // A steady 50 tok/s from the estimate.
-    clock.now = 1_000;
-    line.onMessageStart(ctx, makeMessageStart(message).message);
-    for (let i = 1; i <= 10; i += 1) {
-      clock.now = 1_000 + i * 200;
-      line.onUpdate(ctx, makeTextUpdate(message, 0, "x".repeat(40)));
-    }
-    expect(lastText(writes)).toBe(
-      "[success]⚡[/] [warning]50[/] [dim]tok/s[/]",
-    );
+    stream(line, ctx, clock, message, 1_000, 5, 20);
+    clock.now = 1_600;
+    line.onMessageEnd(ctx, makeMessageEnd(message, 100).message);
 
-    // The whole command lands in one delta: 4000 chars = 1600 estimated
-    // tokens in a single 200ms interval. Only the stream's own pace is
-    // credited, so the row moves a little instead of jumping.
-    clock.now = 3_200;
-    line.onUpdate(ctx, makeToolcallUpdate(message, 0, "x".repeat(4_000)));
-    expect(lastText(writes)).toBe(
-      "[success]⚡[/] [success]55[/] [dim]tok/s[/]",
-    );
+    expect(lastText(writes)).toBe(FROZEN_ROW);
   });
 
-  it("keeps the estimate live when usage appears mid-stream", () => {
+  it("shows both placeholders when a response measured nothing", () => {
     const { ctx, writes } = makeCtx();
     const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
-    const message = makeAssistantMessage();
-
-    clock.now = 1_000;
-    line.onMessageStart(ctx, makeMessageStart(message).message);
-    for (let i = 1; i <= 6; i += 1) {
-      clock.now = 1_000 + i * 200;
-      line.onUpdate(ctx, makeTextUpdate(message, 0, "x".repeat(80)));
-    }
-    expect(lastText(writes)).toBe(ESTIMATE_LIVE);
-
-    // A single usage reading cannot be timed, so the estimate still answers.
-    clock.now = 2_400;
-    line.onUpdate(ctx, makeTextUpdate(message, 900, "x".repeat(80)));
-    expect(lastText(writes)).toBe(ESTIMATE_LIVE);
-
-    // A second reading makes the provider window measurable, and it wins.
-    clock.now = 2_600;
-    line.onUpdate(ctx, makeTextUpdate(message, 1_200, "x".repeat(80)));
-    expect(lastText(writes)).toBe(
-      "[success]⚡[/] [success]1500[/] [dim]tok/s[/]",
-    );
-  });
-
-  it("keeps the last reading dimmed under a green marker until measurable", () => {
-    const { ctx, writes } = makeCtx();
-    const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
-    const message = makeAssistantMessage();
-
-    stream(line, ctx, clock, message, 1_000, 3, 10);
-    line.onMessageEnd(ctx, makeMessageEnd(message, 30).message);
-    expect(lastText(writes)).toBe("[dim]⚡[/] [dim]100[/] [dim]tok/s[/]");
-
-    // New response: a single delta opens the window but cannot produce a rate.
-    // The marker still turns green; the carried-over reading stays dim.
-    clock.now = 5_000;
-    line.onMessageStart(ctx, makeMessageStart(message).message);
-    line.onUpdate(ctx, makeTextUpdate(message, 5));
-    expect(lastText(writes)).toBe("[success]⚡[/] [dim]100[/] [dim]tok/s[/]");
-  });
-
-  it("paints the marker green before any rate is measurable", () => {
-    const { ctx, writes } = makeCtx();
-    const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
-    const message = makeAssistantMessage();
-
-    clock.now = 1_000;
-    line.onMessageStart(ctx, makeMessageStart(message).message);
-    line.onUpdate(ctx, makeTextUpdate(message, 5));
-
-    expect(lastText(writes)).toBe("[success]⚡[/] [dim]tok/s —[/]");
-  });
-
-  it("freezes each new response's rate in place of the previous one", () => {
-    const { ctx, writes } = makeCtx();
-    const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
-    const message = makeAssistantMessage();
-
-    stream(line, ctx, clock, message, 1_000, 5, 5);
-    line.onMessageEnd(ctx, makeMessageEnd(message, 25).message);
-    expect(lastText(writes)).toBe(DIM_YELLOW);
-
-    stream(line, ctx, clock, message, 2_000, 3, 3);
-    line.onMessageEnd(ctx, makeMessageEnd(message, 9).message);
-    expect(lastText(writes)).toBe("[dim]⚡[/] [dim]30[/] [dim]tok/s[/]");
-  });
-
-  it("keeps the previous reading when a response is aborted", () => {
-    const { ctx, writes } = makeCtx();
-    const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
-    const message = makeAssistantMessage();
-
-    stream(line, ctx, clock, message, 1_000, 5, 5);
-    line.onMessageEnd(ctx, makeMessageEnd(message, 50).message);
-    const frozen = lastText(writes);
-    expect(frozen).toBe(DIM_YELLOW);
-
-    // ESC mid-stream: pi still emits message_end, at a faster live rate, so a
-    // repaint back to the previous reading is observable.
-    const aborted = makeAssistantMessage({ stopReason: "aborted" });
-    stream(line, ctx, clock, aborted, 2_000, 3, 20);
-    line.onMessageEnd(ctx, makeMessageEnd(aborted).message);
-
-    expect(lastText(writes)).toBe(frozen);
-  });
-
-  it("falls back to the placeholder when nothing was ever measured", () => {
-    const { ctx, writes } = makeCtx();
-    const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
+    const line = new MetricsLine(() => clock.now);
     const failed = makeAssistantMessage({ stopReason: "error" });
 
-    stream(line, ctx, clock, failed, 1_000, 3, 10);
+    clock.now = 1_000;
+    line.onMessageStart(ctx, { ...failed, timestamp: 1_000 });
+    clock.now = 1_100;
     line.onMessageEnd(ctx, makeMessageEnd(failed).message);
 
-    expect(lastText(writes)).toBe("[dim]⚡[/] [dim]tok/s —[/]");
+    expect(lastText(writes)).toBe(EMPTY_ROW);
+  });
+
+  it("refreshes TTFT for every assistant response in a turn", () => {
+    const { ctx, writes } = makeCtx();
+    const clock = { now: 0 };
+    const line = new MetricsLine(() => clock.now);
+
+    // Tool-call turn: first request, then a second one with a longer TTFT.
+    stream(line, ctx, clock, makeAssistantMessage(), 1_000, 3, 10);
+    expect(lastText(writes)).toContain("[success]100[/][dim]ms[/]");
+
+    clock.now = 5_000;
+    line.onMessageEnd(ctx, makeMessageEnd(makeAssistantMessage(), 30).message);
+    stream(line, ctx, clock, makeAssistantMessage(), 6_000, 3, 10);
+    expect(lastText(writes)).toContain("[success]100[/][dim]ms[/]");
   });
 
   it("throttles writes while a response streams", () => {
     const { ctx, writes } = makeCtx();
     const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
+    const line = new MetricsLine(() => clock.now);
     const message = makeAssistantMessage();
 
     clock.now = 1_000;
-    line.onMessageStart(ctx, makeMessageStart(message).message);
+    line.onMessageStart(ctx, { ...message, timestamp: 1_000 });
     for (let i = 1; i <= 30; i += 1) {
       clock.now = 1_000 + i * 10;
       line.onUpdate(ctx, makeTextUpdate(message, i * 10));
@@ -324,10 +173,10 @@ describe("TokenRateLine", () => {
     );
   });
 
-  it("toggles the line off and back on", () => {
+  it("toggles the whole row off and back on", () => {
     const { ctx, writes } = makeCtx();
     const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
+    const line = new MetricsLine(() => clock.now);
     const message = makeAssistantMessage();
 
     stream(line, ctx, clock, message, 1_000, 3, 10);
@@ -351,7 +200,7 @@ describe("TokenRateLine", () => {
   it("stops clearing the row while it is already hidden", () => {
     const { ctx, writes } = makeCtx();
     const clock = { now: 0 };
-    const line = new TokenRateLine(() => clock.now);
+    const line = new MetricsLine(() => clock.now);
     const message = makeAssistantMessage();
 
     stream(line, ctx, clock, message, 1_000, 3, 10);
@@ -365,9 +214,29 @@ describe("TokenRateLine", () => {
     expect(writes).toEqual([]);
   });
 
+  it("forgets both readings on session start", () => {
+    const { ctx, writes } = makeCtx();
+    const clock = { now: 0 };
+    const line = new MetricsLine(() => clock.now);
+    const message = makeAssistantMessage();
+
+    stream(line, ctx, clock, message, 1_000, 3, 10);
+    line.onMessageEnd(ctx, makeMessageEnd(message, 30).message);
+
+    line.start(ctx);
+    expect(lastText(writes)).toBeUndefined();
+
+    const failed = makeAssistantMessage({ stopReason: "error" });
+    clock.now = 5_000;
+    line.onMessageStart(ctx, { ...failed, timestamp: 5_000 });
+    clock.now = 5_100;
+    line.onMessageEnd(ctx, makeMessageEnd(failed).message);
+    expect(lastText(writes)).toBe(EMPTY_ROW);
+  });
+
   it("ignores non-assistant messages", () => {
     const { ctx, writes } = makeCtx();
-    const line = new TokenRateLine(() => 1_000);
+    const line = new MetricsLine(() => 1_000);
     line.start(ctx);
     writes.length = 0;
 
@@ -389,7 +258,7 @@ describe("TokenRateLine", () => {
       },
     } as unknown as ExtensionContext;
 
-    const line = new TokenRateLine(() => 1_000);
+    const line = new MetricsLine(() => 1_000);
     const message = makeAssistantMessage();
     line.start(ctx);
     line.onMessageStart(ctx, makeMessageStart(message).message);
