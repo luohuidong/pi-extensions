@@ -175,9 +175,6 @@ importers:
       prettier:
         specifier: 3.9.8
         version: 3.9.8
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
 
   packages/pi-show-provider-quota:
     devDependencies:
