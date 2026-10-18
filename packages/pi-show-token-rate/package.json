@@ -1,6 +1,6 @@
 {
   "name": "pi-show-token-rate",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Shows the live output token rate (tok/s) and time to first token (TTFT) of the current model in the pi TUI status bar.",
   "keywords": [
     "pi-package",

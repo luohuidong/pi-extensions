@@ -1,0 +1,9 @@
+pi-show-provider-quota@0.1.1:
+  dir: packages/pi-show-provider-quota
+  intents:
+    - remove-deprecated-quota-packages
+pi-show-token-rate@0.3.0:
+  dir: packages/pi-show-token-rate
+  intents:
+    - token-rate-tighter-status-line
+    - token-rate-ttft
